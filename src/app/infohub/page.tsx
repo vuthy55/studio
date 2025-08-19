@@ -467,7 +467,10 @@ function FootprintsTab() {
                  throw new Error(error);
             }
             
-            setResult(calculationResult || null);
+            if (!calculationResult) {
+                throw new Error("An unexpected response was received from the server.");
+            }
+            setResult(calculationResult);
             
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Calculation Failed', description: error.message });
@@ -512,14 +515,14 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
-                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
-                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                Cost: {settings?.ecoFootprintCost || 10} Tokens
-                            </Badge>
                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                                 Calculate My Footprint
                             </Button>
+                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                Cost: {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
                         </div>
                     </form>
                 </CardContent>
