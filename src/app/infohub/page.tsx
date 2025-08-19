@@ -510,14 +510,14 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
-                            <Badge variant="secondary" className="text-base">
-                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                Cost: {settings?.ecoFootprintCost || 10} Tokens
-                            </Badge>
                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                                 Calculate My Footprint
                             </Button>
+                            <Badge variant="secondary" className="text-base">
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                Cost: {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
                         </div>
                     </form>
                 </CardContent>
