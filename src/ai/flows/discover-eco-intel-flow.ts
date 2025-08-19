@@ -28,9 +28,10 @@ export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<Di
 
     // If the AI returns null or undefined, construct a default "empty" response.
     if (!result) {
+        console.warn(`[discoverEcoIntel] Flow returned a null result for ${input.countryName}. Returning empty structure.`);
         return {
             countryName: input.countryName,
-            region: 'Unknown', // Or determine a default based on input
+            region: 'Unknown',
             curatedSearchSources: [],
             offsettingOpportunities: [],
             ecoTourismOpportunities: [],
@@ -40,14 +41,14 @@ export async function discoverEcoIntel(input: DiscoverEcoIntelInput): Promise<Di
     // Ensure the result conforms to the schema, even if the AI returns a null/undefined value for optional fields.
     // This prevents downstream errors if the AI fails to find specific opportunities.
     return {
-      countryName: result.countryName,
+      countryName: result.countryName || input.countryName,
       region: result.region,
       curatedSearchSources: result.curatedSearchSources || [],
       offsettingOpportunities: result.offsettingOpportunities || [],
       ecoTourismOpportunities: result.ecoTourismOpportunities || [],
     };
   } catch (error) {
-      console.error(`[discoverEcoIntel] Flow failed for ${input.countryName}:`, error);
+      console.error(`[discoverEcoIntel] Flow failed critically for ${input.countryName}:`, error);
       // Return a default empty structure on any critical failure to prevent crashes.
        return {
             countryName: input.countryName,

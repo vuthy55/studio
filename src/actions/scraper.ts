@@ -1,12 +1,11 @@
 
-'use server';
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
  * Fetches the content of a URL and extracts the text from its body and attempts to find a publication date.
- * This is a server-side action to handle the external request securely.
+ * This is a server-side helper function to handle the external request securely.
  * @param {string} url - The URL of the webpage to scrape.
  * @returns {Promise<{success: boolean, content?: string, publishedDate?: string, error?: string}>} An object with the scraped content or an error message.
  */

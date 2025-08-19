@@ -98,7 +98,7 @@ export async function buildEcoIntelData(countryCode: string): Promise<{ success:
     try {
         log.push(`[INFO] Stage 1: Compiling queries for ${country.name}...`);
         
-        // **NEW** Stage 1: Targeted government search
+        // Stage 1: Targeted government search
         const governmentQuery = `(ministry OR department OR agency) of (environment OR forestry OR conservation) official site ${country.name}`;
         log.push(`[INFO] Stage 1a: Executing targeted government search...`);
         const govSearchResult = await searchWebAction({ query: governmentQuery });
@@ -126,7 +126,7 @@ export async function buildEcoIntelData(countryCode: string): Promise<{ success:
         }
 
 
-        // **NEW** Stage 2: Broader search, but only using snippets (no scraping)
+        // Stage 2: Broader search, but only using snippets (no scraping)
         log.push(`[INFO] Stage 2: Executing broader searches for snippets...`);
         const broaderQueries = [
             `"top environmental NGOs in ${country.name}"`,
@@ -177,6 +177,7 @@ export async function buildEcoIntelData(countryCode: string): Promise<{ success:
 
     } catch (error: any) {
         log.push(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
+        console.error(`[buildEcoIntelData] Full error for ${country.name}:`, error);
         return { success: false, log, error: error.message };
     }
 }

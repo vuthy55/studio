@@ -1,5 +1,4 @@
 
-'use server';
 
 import axios from 'axios';
 
@@ -16,14 +15,13 @@ interface SearchWebActionPayload {
 
 /**
  * Performs a web search using the Google Custom Search API.
- * This is a server-side action to protect the API key.
- * @param {SearchWebActionPayload} payload - The search payload containing query and credentials.
+ * This is a server-side helper function, not a server action.
+ * @param {SearchWebActionPayload} payload - The search payload containing query.
  * @returns {Promise<{success: boolean, results?: SearchResult[], error?: string}>} An object with search results or an error.
  */
 export async function searchWebAction(payload: SearchWebActionPayload): Promise<{success: boolean, results?: SearchResult[], error?: string}> {
     const { query, dateRestrict } = payload;
     
-    // API keys are now securely read on the server side.
     const apiKey = process.env.GOOGLE_API_KEY;
     const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
     
