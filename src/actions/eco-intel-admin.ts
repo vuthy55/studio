@@ -60,16 +60,17 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
     }
 
     const docRef = db.collection('countryEcoIntel').doc(country.code);
+    const logMessage = (message: string) => log.push(message);
 
     try {
-        log.push(`[START] Kicking off AI Research Agent for ${country.name}...`);
-        const ecoData = await discoverEcoIntel({ countryName: country.name }, log);
+        logMessage(`[START] Kicking off AI Research Agent for ${country.name}...`);
+        const ecoData = await discoverEcoIntel({ countryName: country.name }, logMessage);
         
         if (!ecoData || !ecoData.countryName) {
             throw new Error('AI Research Agent failed to return sufficient data.');
         }
 
-        log.push(`[INFO] Saving analyzed data to Firestore...`);
+        logMessage(`[INFO] Saving analyzed data to Firestore...`);
         const finalData = {
             ...ecoData,
             id: country.code,
@@ -80,10 +81,10 @@ export async function buildEcoIntelData(countryCode: string): Promise<{success: 
         };
         await docRef.set(finalData, { merge: true });
 
-        log.push(`[SUCCESS] Build for ${country.name} completed successfully.`);
+        logMessage(`[SUCCESS] Build for ${country.name} completed successfully.`);
         return { success: true, log };
     } catch (error: any) {
-        log.push(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
+        logMessage(`[CRITICAL] CRITICAL ERROR processing ${country.name}: ${error.message}`);
         await docRef.set({
             countryName: country.name,
             id: country.code,
