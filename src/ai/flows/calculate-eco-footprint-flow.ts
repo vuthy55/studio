@@ -111,20 +111,20 @@ const calculateEcoFootprintFlow = ai.defineFlow(
 
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     
-    // --- DEFINITIVE FIX: Standardize the data structure before passing to the AI ---
+    // Combine both offsetting and eco-tourism opportunities into one list for the AI.
     const allLocalOpportunities = [
-        ...((ecoIntelData.offsettingOpportunities || []).map(o => ({
-            name: o.name,
-            url: o.url,
-            description: o.responsibility, // Map 'responsibility' to 'description'
-            activityType: o.activityType
-        }))),
-        ...((ecoIntelData.ecoTourismOpportunities || []).map(o => ({
-            name: o.name,
-            url: o.bookingUrl || '',
-            description: o.description,
-            activityType: o.category || 'tourism'
-        })))
+      ...((ecoIntelData.offsettingOpportunities || []).map(o => ({
+          name: o.name,
+          url: o.url || '', // Ensure URL is always a string
+          description: o.description,
+          activityType: o.activityType
+      }))),
+      ...((ecoIntelData.ecoTourismOpportunities || []).map(o => ({
+          name: o.name,
+          url: o.bookingUrl || '',
+          description: o.description,
+          activityType: o.category || 'tourism'
+      })))
     ];
 
 

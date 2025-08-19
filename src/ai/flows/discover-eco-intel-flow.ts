@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An advanced, multi-step Genkit flow to discover and structure eco-intelligence data for a given country.
@@ -97,6 +98,7 @@ const discoverEcoIntelFlow = ai.defineFlow(
 
         **CRITICAL Data Requirements:**
         - **URLs are Mandatory for Organizations**: For every government body, NGO, or offsetting opportunity, you MUST find and include its full, direct, official URL. If you cannot find a URL in the scraped text, DISCARD that organization. Do not include entries with empty or placeholder URLs.
+        - **Activity Type is Mandatory for Offsetting**: For every entry in \`offsettingOpportunities\`, you MUST include an \`activityType\` string (e.g., 'tree_planting', 'renewable_energy', 'conservation').
         - **Booking URLs are Optional for Eco-Tourism**: For eco-tourism opportunities, a booking URL is helpful but not required. **If a booking URL is not found in the text, you MUST OMIT the \`bookingUrl\` field entirely for that entry. Do NOT discard the opportunity.**
       `,
       model: 'googleai/gemini-1.5-pro',
@@ -106,13 +108,10 @@ const discoverEcoIntelFlow = ai.defineFlow(
       },
     });
 
-    // --- DEFINITIVE FIX ---
-    // Handle cases where the AI model refuses to answer and returns null.
     if (!output) {
       throw new Error("AI analysis failed to generate a valid response (returned null). This may be due to a lack of relevant search results or a content safety block.");
     }
     
-    // Sanitize the data to remove any empty booking URLs that the AI might still produce.
     if (output.ecoTourismOpportunities) {
         output.ecoTourismOpportunities.forEach(opp => {
           if ('bookingUrl' in opp && (opp.bookingUrl === "" || opp.bookingUrl === null)) {
