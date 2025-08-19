@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
@@ -21,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -207,7 +209,7 @@ function LocationIntelTab() {
                 <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <CardTitle>Location</CardTitle>
+                            <CardTitle>Location Intel</CardTitle>
                             <CardDescription>Select a country to view standard information and get the latest AI-powered travel safety analysis.</CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
@@ -510,14 +512,14 @@ function FootprintsTab() {
                             className="text-base"
                         />
                         <div className="flex items-center justify-end gap-4">
+                            <Badge variant="secondary" className="flex items-center gap-1.5 text-base h-10">
+                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
+                                Cost: {settings?.ecoFootprintCost || 10} Tokens
+                            </Badge>
                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? <LoaderCircle className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                                 Calculate My Footprint
                             </Button>
-                            <Badge variant="secondary" className="text-base">
-                                <Coins className="h-4 w-4 mr-1.5 text-amber-500" />
-                                Cost: {settings?.ecoFootprintCost || 10} Tokens
-                            </Badge>
                         </div>
                     </form>
                 </CardContent>
