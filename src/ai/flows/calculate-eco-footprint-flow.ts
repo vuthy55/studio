@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to calculate the carbon footprint of a journey.
@@ -110,11 +111,17 @@ const calculateEcoFootprintFlow = ai.defineFlow(
 
     const calculationSources = (appSettings.ecoFootprintCalculationSources || '').split(',').map(s => s.trim()).filter(Boolean);
     
-    // Combine both offsetting and eco-tourism opportunities into one list for the AI
+    // --- DEFINITIVE FIX: Combine all opportunities into a single list for the AI ---
     const allLocalOpportunities = [
-        ...(ecoIntelData.offsettingOpportunities || []).map(o => ({...o, type: 'offset'})),
-        ...(ecoIntelData.ecoTourismOpportunities || []).map(o => ({...o, type: 'tourism'}))
+        ...((ecoIntelData.offsettingOpportunities || []).map(o => ({...o, activityType: 'offset' }))),
+        ...((ecoIntelData.ecoTourismOpportunities || []).map(o => ({
+            name: o.name,
+            description: o.description,
+            url: o.bookingUrl || '', // Ensure URL is always a string
+            activityType: o.category || 'tourism'
+        })))
     ];
+
 
     debugLog.push(`[INFO] Using ${calculationSources.length} global calculation sources.`);
     debugLog.push(`[INFO] Found ${allLocalOpportunities.length} local opportunities from the database.`);
