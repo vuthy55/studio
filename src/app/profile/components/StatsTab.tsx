@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type LanguageCode, languages, phrasebook, type Phrase } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
@@ -154,33 +154,34 @@ export default function StatsTab() {
                     <DialogTitle>
                         Performance Details: {languages.find(l => l.value === selectedLanguageForDialog)?.label}
                     </DialogTitle>
-                    <div className="mt-4">
-                        {isDialogDataLoading ? (
-                            <div className="flex justify-center items-center h-48">
-                                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        ) : detailedHistoryForDialog.length > 0 ? (
-                            <ScrollArea className="h-72">
-                                <ul className="space-y-3 pr-4">
-                                    {detailedHistoryForDialog.map(history => (
-                                        <li key={history.id} className="text-sm border-b pb-2">
-                                            <p className="font-semibold">{history.phraseText}</p>
-                                            <div className="flex items-center justify-between text-muted-foreground mt-1">
-                                                <div className="flex items-center gap-4">
-                                                    <span className="flex items-center gap-1.5" title="Correct attempts"><Check className="h-4 w-4 text-green-500" /> {history.passCount}</span>
-                                                    <span className="flex items-center gap-1.5" title="Incorrect attempts"><X className="h-4 w-4 text-red-500" /> {history.failCount}</span>
-                                                </div>
-                                                <span>Last Accuracy: {history.lastAccuracy.toFixed(0)}%</span>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </ScrollArea>
-                        ) : (
-                            <p className="text-center text-muted-foreground py-8">No specific practice data found for this language.</p>
-                        )}
-                    </div>
+                    <DialogDescription>A detailed breakdown of this user's practice history for this language.</DialogDescription>
                 </DialogHeader>
+                <div className="mt-4">
+                    {isDialogDataLoading ? (
+                        <div className="flex justify-center items-center h-48">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : detailedHistoryForDialog.length > 0 ? (
+                        <ScrollArea className="h-72">
+                            <ul className="space-y-3 pr-4">
+                                {detailedHistoryForDialog.map(history => (
+                                    <li key={history.id} className="text-sm border-b pb-2">
+                                        <p className="font-semibold">{history.phraseText}</p>
+                                        <div className="flex items-center justify-between text-muted-foreground mt-1">
+                                            <div className="flex items-center gap-4">
+                                                <span className="flex items-center gap-1.5" title="Correct attempts"><Check className="h-4 w-4 text-green-500" /> {history.passCount}</span>
+                                                <span className="flex items-center gap-1.5" title="Incorrect attempts"><X className="h-4 w-4 text-red-500" /> {history.failCount}</span>
+                                            </div>
+                                            <span>Last Accuracy: {history.lastAccuracy.toFixed(0)}%</span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </ScrollArea>
+                    ) : (
+                        <p className="text-center text-muted-foreground py-8">No specific practice data found for this language.</p>
+                    )}
+                </div>
             </DialogContent>
         </Dialog>
     )

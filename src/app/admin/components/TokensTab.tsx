@@ -143,6 +143,9 @@ export default function TokensTab() {
             case 'sync_online_refund': return 'Sync Online Refund';
             case 'language_pack_download': return 'Language Pack Download';
             case 'save_phrase_spend': return 'Saved Phrases for Offline';
+            case 'transcript_generation': return 'Room Transcript';
+            case 'eco_footprint_spend': return 'Eco-Footprint Calc';
+            case 'transport_intel': return 'Transport Intel';
             default: return 'Prep Your Vibe';
         }
     };

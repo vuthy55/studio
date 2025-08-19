@@ -47,6 +47,8 @@ function TokenHistoryDialog() {
             case 'infohub_intel': return 'InfoHub Intel';
             case 'save_phrase_spend': return 'Saved Phrases for Offline';
             case 'transcript_generation': return 'Room Transcript';
+            case 'eco_footprint_spend': return 'Eco-Footprint Calc';
+            case 'transport_intel': return 'Transport Intel';
             default: return 'Prep Your Vibe';
         }
     }
