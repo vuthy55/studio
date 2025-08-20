@@ -79,7 +79,7 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
             },
             body: JSON.stringify({
                 intent: 'CAPTURE',
-                purchase_units: [{ // Corrected: This must be an array
+                purchase_units: [{
                     amount: {
                         currency_code: 'USD',
                         value: purchaseAmount,
