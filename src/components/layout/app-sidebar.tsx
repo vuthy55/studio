@@ -205,18 +205,11 @@ export function AppSidebar() {
               ))}
               
               {userProfile?.role === 'admin' && (
-                <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith('/debug')}>
-                        <Link href="/debug" onClick={closeSidebar}><Bug/>Debug</Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname.startsWith('/admin')}>
                         <Link href="/admin" onClick={closeSidebar}><Settings/>Admin</Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                </>
               )}
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout}>
