@@ -7,14 +7,13 @@ import { languages, phrasebook, type LanguageCode, type Topic, type Phrase } fro
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, Download } from 'lucide-react';
+import { Volume2, ArrowRightLeft, Mic, Info, LoaderCircle, Award, Star, CheckCircle2, XCircle, Bookmark, HelpCircle, Download, PlayCircle } from 'lucide-react';
 import {
   Tooltip,
   TooltipProvider,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { generateSpeech } from '@/services/tts';
 import { assessPronunciationFromMic, abortRecognition } from '@/services/speech';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
@@ -87,6 +86,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
     
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
+    const [playingPhraseId, setPlayingPhraseId] = useState<string | null>(null);
     const [lastAssessment, setLastAssessment] = useState<Record<string, AssessmentResult>>({});
     
     const [isOnline, setIsOnline] = useState(true);
@@ -136,34 +136,33 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     }, []);
 
     const handlePlayAudio = async (text: string, lang: LanguageCode, phraseId: string) => {
-        if (!text || !!assessingPhraseId) return;
+        if (!text || !!assessingPhraseId || !!playingPhraseId) return;
 
         const langPack = offlineAudioPacks[lang];
         const audioDataUri = langPack?.[phraseId];
-
-        if (audioDataUri) {
-            const audio = new Audio(audioDataUri);
-            audio.play().catch(e => console.error("Offline audio playback failed.", e));
-            return;
-        }
-
-        if (!isOnline) {
-             toast({ variant: 'destructive', title: 'Audio Unavailable Offline', description: 'Download this language pack for offline listening.' });
-            return;
-        }
         
-        const locale = languageToLocaleMap[lang];
+        if (!audioDataUri) {
+            toast({ variant: 'destructive', title: 'Audio Unavailable', description: 'Download this language pack for audio playback.' });
+            return;
+        }
+
         try {
-            const response = await generateSpeech({ text, lang: locale || 'en-US', voice: selectedVoice });
-            const audio = new Audio(response.audioDataUri);
-            audio.play().catch(e => console.error("Online audio playback failed.", e));
-        } catch (error: any) {
-            console.error("TTS generation failed.", error);
-            toast({
-                variant: 'destructive',
-                title: 'Audio Error',
-                description: error.message || 'Could not generate audio for the selected language.',
-            });
+            setPlayingPhraseId(phraseId);
+            const audio = new Audio(audioDataUri);
+            
+            audio.onended = () => {
+                setPlayingPhraseId(null);
+            };
+            audio.onerror = () => {
+                console.error("Audio playback failed for phrase:", phraseId);
+                toast({ variant: 'destructive', title: 'Audio Error', description: 'Could not play the audio clip.' });
+                setPlayingPhraseId(null);
+            };
+
+            await audio.play();
+        } catch (e) {
+            console.error("Audio playback failed.", e);
+            setPlayingPhraseId(null);
         }
     };
     
@@ -175,7 +174,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     }
 
     const doAssessPronunciation = useCallback(async (phrase: Phrase, topicId: string) => {
-        if (assessingPhraseId) return;
+        if (assessingPhraseId || playingPhraseId) return;
         if (!user) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'Please log in to save your practice progress.' });
             return;
@@ -229,7 +228,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
         } finally {
             setAssessingPhraseId(null);
         }
-    }, [assessingPhraseId, user, settings, toLanguage, recordPracticeAttempt, toast]);
+    }, [assessingPhraseId, user, settings, toLanguage, recordPracticeAttempt, toast, playingPhraseId]);
     
     const sortedPhrases = useMemo(() => {
         return [...selectedTopic.phrases];
@@ -294,20 +293,6 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-
-                        <div className="w-full sm:w-auto sm:flex-1" data-tour="voice-selector">
-                        <Label htmlFor="tts-voice">Voice</Label>
-                        <Select value={selectedVoice} onValueChange={(value) => setSelectedVoice(value as VoiceSelection)}>
-                            <SelectTrigger id="tts-voice">
-                                <SelectValue placeholder="Select a voice" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Default</SelectItem>
-                                <SelectItem value="male">Male</SelectItem>
-                                <SelectItem value="female">Female</SelectItem>
-                            </SelectContent>
-                        </Select>
                         </div>
                     </div>
                 
@@ -385,6 +370,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
 
                                     const assessment = lastAssessment[phrase.id];
                                     const isAssessingCurrent = assessingPhraseId === phrase.id;
+                                    const isPlayingCurrent = playingPhraseId === phrase.id;
                                     
                                     const history = practiceHistory[phrase.id];
                                     const passes = history?.passCountPerLang?.[toLanguage] || 0;
@@ -399,7 +385,6 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                                     };
                                     
                                     const isAudioAvailableOffline = !!offlineAudioPacks[toLanguage]?.[phrase.id];
-                                    const canPlayAudio = isOnline || isAudioAvailableOffline;
 
                                     return (
                                     <div key={phrase.id} className="bg-background/80 p-4 rounded-lg flex flex-col gap-3 transition-all duration-300 hover:bg-secondary/70 border" data-tour={`phrase-item-${index}`}>
@@ -424,14 +409,14 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId} data-tour={`listen-button-${index}`}>
-                                                                    <Volume2 className="h-5 w-5" />
+                                                                <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toText, toLanguage, phrase.id)} disabled={!isAudioAvailableOffline || isAssessingCurrent || !!playingPhraseId} data-tour={`listen-button-${index}`}>
+                                                                    {isPlayingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
                                                                     <span className="sr-only">Play audio</span>
                                                                 </Button>
                                                             </TooltipTrigger>
-                                                             {!canPlayAudio && (
+                                                             {!isAudioAvailableOffline && (
                                                                 <TooltipContent>
-                                                                    <p>Download pack for offline audio.</p>
+                                                                    <p>Download pack for audio.</p>
                                                                 </TooltipContent>
                                                             )}
                                                         </Tooltip>
@@ -441,7 +426,7 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <div className="relative">
-                                                                    <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!isOnline || isAssessingCurrent || !!assessingPhraseId} data-tour={`practice-button-${index}`}>
+                                                                    <Button size="icon" variant="ghost" onClick={() => doAssessPronunciation(phrase, selectedTopic.id)} disabled={!isOnline || isAssessingCurrent || !!playingPhraseId} data-tour={`practice-button-${index}`}>
                                                                         {isAssessingCurrent ? <LoaderCircle className="h-5 w-5 animate-spin text-destructive" /> : <Mic className={cn("h-5 w-5")} /> }
                                                                         <span className="sr-only">Record pronunciation</span>
                                                                     </Button>
@@ -486,14 +471,14 @@ const PhrasebookTab = memo(function PhrasebookTab() {
                                                         <TooltipProvider>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage, `${phrase.id}-ans`)} disabled={!canPlayAudio || isAssessingCurrent || !!assessingPhraseId}>
-                                                                        <Volume2 className="h-5 w-5" />
+                                                                    <Button size="icon" variant="ghost" onClick={() => handlePlayAudio(toAnswerText, toLanguage, `${phrase.id}-ans`)} disabled={!isAudioAvailableOffline || isAssessingCurrent || !!playingPhraseId}>
+                                                                        {playingPhraseId === `${phrase.id}-ans` ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
                                                                         <span className="sr-only">Play audio</span>
                                                                     </Button>
                                                                 </TooltipTrigger>
-                                                                {!canPlayAudio && (
+                                                                {!isAudioAvailableOffline && (
                                                                     <TooltipContent>
-                                                                        <p>Download pack for offline audio.</p>
+                                                                        <p>Download pack for audio.</p>
                                                                     </TooltipContent>
                                                                 )}
                                                             </Tooltip>
