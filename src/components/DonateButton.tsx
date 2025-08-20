@@ -20,9 +20,8 @@ import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js";
-import { createPayPalOrder } from '@/actions/paypal';
-import { addLedgerEntry } from '@/services/ledger';
+import type { OnApproveData } from "@paypal/paypal-js";
+import { createPayPalOrder, capturePayPalDonation } from '@/actions/paypal';
 
 
 interface DonateButtonProps {
@@ -39,24 +38,24 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const presetAmounts = [5, 10, 25];
   const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 
-  const handleCreateOrder = async (data: Record<string, unknown>, actions: CreateOrderActions) => {
+  const handleCreateOrder = async (): Promise<string> => {
      if (!user) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to donate.' });
-        return '';
+        throw new Error("User not logged in.");
     }
-    try {
-        const { orderID, error } = await createPayPalOrder({
-            userId: user.uid,
-            orderType: 'donation',
-            value: amount,
-        });
+    
+    const { orderID, error } = await createPayPalOrder({
+        userId: user.uid,
+        orderType: 'donation',
+        value: amount,
+    });
 
-        if (error) throw new Error(error);
-        return orderID || '';
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not create PayPal order.' });
-        return '';
+    if (error || !orderID) {
+        toast({ variant: 'destructive', title: 'Order Creation Failed', description: error });
+        throw new Error(error || 'Could not create PayPal order.');
     }
+    
+    return orderID;
   };
 
   const handleOnApprove = async (data: OnApproveData) => {
@@ -67,20 +66,15 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
         return;
       }
       try {
-          // Note: For donations, we don't need to call capturePayPalOrder because we don't need to award tokens.
-          // We just log it for our records.
-          await addLedgerEntry({
-              type: 'revenue',
-              source: 'paypal-donation',
-              description: `Donation from ${user.email}`,
-              amount: amount,
-              orderId: data.orderID,
-              userId: user.uid,
-              timestamp: new Date(),
-          });
-          toast({ title: 'Thank You!', description: 'Your generous donation is greatly appreciated!' });
+          const result = await capturePayPalDonation(data.orderID, user.uid, amount);
+          
+          if (result.success) {
+              toast({ title: 'Thank You!', description: result.message });
+          } else {
+              throw new Error(result.message);
+          }
       } catch (error: any) {
-          toast({ variant: 'destructive', title: 'Error', description: 'There was an issue logging your donation.' });
+          toast({ variant: 'destructive', title: 'Donation Error', description: 'There was an issue processing your donation.' });
       } finally {
           setIsProcessing(false);
           setDialogOpen(false);
