@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import type { OnApproveData } from "@paypal/paypal-js";
 import { createPayPalOrder, capturePayPalDonation } from '@/actions/paypal';
+import { ScrollArea } from './ui/scroll-area';
 
 
 interface DonateButtonProps {
@@ -34,9 +35,14 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const [amount, setAmount] = useState(5.00);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
 
   const presetAmounts = [5, 10, 25];
-  const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production' ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  const PAYPAL_CLIENT_ID = isProduction 
+    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE 
+    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
 
   const handleCreateOrder = async (): Promise<string> => {
      if (!user) {
@@ -44,15 +50,26 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
         throw new Error('User not logged in');
     }
     
-    const { orderID, error } = await createPayPalOrder({
+    const { orderID, error, debugLog: log } = await createPayPalOrder({
         userId: user.uid,
         orderType: 'donation',
         value: amount,
     });
+    
+    setDebugLog(log || []);
 
     if (error || !orderID) {
-        // Display the detailed error from the server
-        toast({ variant: 'destructive', title: 'Order Creation Failed', description: error, duration: 10000 });
+        const description = (
+          <div>
+            <p className="font-semibold">{error}</p>
+            {log && log.length > 0 && (
+              <ScrollArea className="mt-2 h-32 w-full rounded-md border bg-muted p-2">
+                <pre className="text-xs whitespace-pre-wrap">{log.join('\n')}</pre>
+              </ScrollArea>
+            )}
+          </div>
+        );
+        toast({ variant: 'destructive', title: 'Order Creation Failed', description, duration: 20000 });
         throw new Error(error || 'Could not create PayPal order.');
     }
     return orderID;
@@ -158,3 +175,5 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
     </Dialog>
   );
 }
+
+    

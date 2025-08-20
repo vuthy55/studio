@@ -24,6 +24,7 @@ import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
+import { ScrollArea } from './ui/scroll-area';
 
 interface BuyTokensProps {
   variant?: 'button' | 'icon';
@@ -41,9 +42,14 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [tokenAmount, setTokenAmount] = useState(500);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
 
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
-  const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production' ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+  
+  const isProduction = process.env.NODE_ENV === 'production';
+  const PAYPAL_CLIENT_ID = isProduction 
+    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE 
+    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
 
   const handleCreateOrder = async (): Promise<string> => {
     if (!user) {
@@ -51,15 +57,27 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
         throw new Error('User not logged in');
     }
     
-    const { orderID, error } = await createPayPalOrder({
+    const { orderID, error, debugLog: log } = await createPayPalOrder({
         userId: user.uid,
         orderType: 'tokens',
         value: tokenAmount,
     });
+    
+    setDebugLog(log || []);
 
     if (error || !orderID) {
-        // Display the detailed error from the server
-        toast({ variant: 'destructive', title: 'Order Creation Failed', description: error, duration: 10000 });
+        const description = (
+          <div>
+            <p className="font-semibold">{error}</p>
+            {log && log.length > 0 && (
+              <ScrollArea className="mt-2 h-32 w-full rounded-md border bg-muted p-2">
+                <pre className="text-xs whitespace-pre-wrap">{log.join('\n')}</pre>
+              </ScrollArea>
+            )}
+          </div>
+        );
+
+        toast({ variant: 'destructive', title: 'Order Creation Failed', description, duration: 20000 });
         throw new Error(error || 'Could not create PayPal order.');
     }
     return orderID;
@@ -177,3 +195,5 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
     </Dialog>
   );
 }
+
+    
