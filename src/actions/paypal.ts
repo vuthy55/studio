@@ -9,7 +9,6 @@ import { getAppSettingsAction } from './settings';
  * Returns the PayPal Client ID for the current environment.
  * This is a server action to securely provide the client-side script with the correct ID.
  * For now, it is hardcoded to only return the SANDBOX ID.
- * @returns {Promise<string>} The PayPal Client ID.
  */
 export async function getPayPalClientId(): Promise<string> {
     const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
@@ -28,7 +27,7 @@ interface CreateOrderPayload {
 }
 
 // This function will now ONLY use Sandbox credentials.
-async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
+export async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
     const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
     const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
     const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
@@ -284,5 +283,3 @@ export async function capturePayPalDonation(orderID: string, userId: string, amo
         return { success: false, message: 'Failed to capture donation on the server.' };
     }
 }
-
-    
