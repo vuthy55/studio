@@ -154,35 +154,24 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
 
-                    // --- Auto-download unlocked but not yet downloaded packs ---
-                    const downloaded = new Set(profileData.downloadedPacks || []);
-                    for (const lang of (profileData.unlockedLanguages || [])) {
-                        if (!downloaded.has(lang) && offlineAudioPackLanguages.includes(lang) && !offlineAudioPacks[lang]) {
-                            try {
-                                await loadSingleOfflinePack(lang);
-                            } catch (e) {
-                                console.error(`Failed to auto-download ${lang}:`, e);
+                    // --- Load existing offline packs from IndexedDB into state ---
+                    const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+                    const packPromises = allPackKeys.map(key => getOfflineAudio(key));
+                    
+                    Promise.all(packPromises).then(packs => {
+                        const loadedPacks: Record<string, AudioPack> = {};
+                        packs.forEach((pack, index) => {
+                            if(pack) {
+                                const key = allPackKeys[index];
+                                loadedPacks[key] = pack;
                             }
-                        }
-                    }
+                        });
+                        setOfflineAudioPacks(loadedPacks);
+                    });
 
                 } else {
                     setUserProfile({});
                 }
-                 // --- Load existing offline packs from IndexedDB into state ---
-                const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-                const packPromises = allPackKeys.map(key => getOfflineAudio(key));
-                
-                Promise.all(packPromises).then(packs => {
-                    const loadedPacks: Record<string, AudioPack> = {};
-                    packs.forEach((pack, index) => {
-                        if(pack) {
-                            const key = allPackKeys[index];
-                            loadedPacks[key] = pack;
-                        }
-                    });
-                    setOfflineAudioPacks(loadedPacks);
-                });
 
             }, (error) => {
                 console.error("Error listening to user profile:", error);
@@ -225,7 +214,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (historyUnsubscribe.current) historyUnsubscribe.current();
             if (savedPhrasesUnsubscribe.current) savedPhrasesUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState, loadSingleOfflinePack, offlineAudioPacks]);
+    }, [user, authLoading, clearLocalState]);
     
 
     // --- Firestore Synchronization Logic ---
@@ -494,35 +483,26 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             throw new Error("Insufficient tokens to unlock this language pack.");
         }
         
-        // Optimistic UI Update
-        setUserProfile(prev => ({
-            ...prev,
-            tokenBalance: (prev.tokenBalance || 0) - cost,
-            unlockedLanguages: [...(prev.unlockedLanguages || []), lang]
-        }));
-        
         try {
             const result = await unlockLanguagePackAction(user.uid, lang, cost);
-            if (!result.success) {
-                // Revert optimistic update on server failure
-                setUserProfile(prev => ({
+            if (result.success) {
+                // The server action now handles all DB writes. We just need to update local state optimistically.
+                 setUserProfile(prev => ({
                     ...prev,
-                    tokenBalance: (prev.tokenBalance || 0) + cost,
-                    unlockedLanguages: prev.unlockedLanguages?.filter(l => l !== lang)
+                    tokenBalance: (prev.tokenBalance || 0) - cost,
+                    unlockedLanguages: [...(prev.unlockedLanguages || []), lang],
                 }));
+                // And then trigger the download.
+                await loadSingleOfflinePack(lang);
+            } else {
                 throw new Error(result.error || 'Server-side unlock failed.');
             }
-            // If server succeeds, immediately trigger the download
-            await loadSingleOfflinePack(lang);
 
         } catch (error) {
-             // Revert optimistic update on any failure
-             setUserProfile(prev => ({
-                ...prev,
-                tokenBalance: (prev.tokenBalance || 0) + cost,
-                unlockedLanguages: prev.unlockedLanguages?.filter(l => l !== lang)
-            }));
-            throw error; // Re-throw for the UI to catch and display
+             console.error('Error in unlockLanguagePack:', error);
+             // Since this is a client-side context, re-throw the error
+             // so the calling component can display a toast.
+            throw error;
         }
     }, [user, settings, userProfile, loadSingleOfflinePack]);
 
