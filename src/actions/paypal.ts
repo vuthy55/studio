@@ -21,7 +21,6 @@ function getPayPalClient() {
     throw new Error('PayPal client ID or secret is not configured on the server.');
   }
   
-  // The new SDK handles environment configuration differently. We'll use the API directly.
   return {
       clientId,
       clientSecret,
@@ -41,6 +40,13 @@ async function getAccessToken({ clientId, clientSecret, environment }: ReturnTyp
         },
         body: 'grant_type=client_credentials'
     });
+
+    if (!response.ok) {
+        const errorDetails = await response.json();
+        console.error("[PayPal Auth Error]", errorDetails);
+        throw new Error("Failed to get PayPal access token.");
+    }
+
     const data = await response.json();
     return data.access_token;
 }
@@ -51,7 +57,6 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
     let purchaseAmount = '0.01'; // Default to a small amount
 
     if (orderType === 'tokens') {
-        // Assume 100 tokens = $1, so 1 token = $0.01
         purchaseAmount = (value * 0.01).toFixed(2);
     } else if (orderType === 'donation') {
         purchaseAmount = value.toFixed(2);
@@ -61,11 +66,11 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         return { error: 'Invalid purchase amount.' };
     }
 
-    const client = getPayPalClient();
-    const accessToken = await getAccessToken(client);
-    const url = client.environment === 'live' ? 'https://api-m.paypal.com/v2/checkout/orders' : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
-
     try {
+        const client = getPayPalClient();
+        const accessToken = await getAccessToken(client);
+        const url = client.environment === 'live' ? 'https://api-m.paypal.com/v2/checkout/orders' : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
+
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -74,7 +79,7 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
             },
             body: JSON.stringify({
                 intent: 'CAPTURE',
-                purchase_units: [{
+                purchase_units: [{ // Corrected: This must be an array
                     amount: {
                         currency_code: 'USD',
                         value: purchaseAmount,
@@ -88,23 +93,25 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         if (response.ok) {
             return { orderID: orderData.id };
         } else {
+             // Enhanced logging
+             console.error("[PayPal Order Creation Error]", orderData);
              throw new Error(orderData.message || 'Failed to create PayPal order.');
         }
 
     } catch (error: any) {
-        console.error("Error creating PayPal order:", error.message);
-        return { error: 'Failed to create PayPal order on the server.' };
+        console.error("[PayPal Server Action] Full Error:", error);
+        return { error: error.message || 'Failed to create PayPal order on the server.' };
     }
 }
 
 // --- Server Action: Capture an order ---
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
     
-    const client = getPayPalClient();
-    const accessToken = await getAccessToken(client);
-    const url = client.environment === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
-
     try {
+        const client = getPayPalClient();
+        const accessToken = await getAccessToken(client);
+        const url = client.environment === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
+
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -124,13 +131,11 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
             const amountPaid = parseFloat(purchaseUnit.payments.captures[0].amount.value);
             const currency = purchaseUnit.payments.captures[0].amount.currency_code;
             
-            // Calculate tokens based on the amount paid (100 tokens per dollar)
             const tokensEarned = Math.round(amountPaid * 100);
 
-            // Fetch app settings to check for bonus tokens
             const settings = await getAppSettingsAction();
             let bonusTokens = 0;
-            if (amountPaid === 10.00) bonusTokens = settings.referralBonus || 0; // Re-using referralBonus for a simple package deal
+            if (amountPaid === 10.00) bonusTokens = settings.referralBonus || 0;
             if (amountPaid >= 25.00) bonusTokens = 500;
             
             const totalTokens = tokensEarned + bonusTokens;
@@ -138,10 +143,8 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
             const userRef = db.collection('users').doc(userId);
             const batch = db.batch();
 
-            // 1. Update user's token balance
             batch.update(userRef, { tokenBalance: FieldValue.increment(totalTokens) });
 
-            // 2. Log the token transaction
             const tokenLogRef = userRef.collection('transactionLogs').doc();
             batch.set(tokenLogRef, {
                 actionType: 'purchase',
@@ -150,7 +153,6 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
                 description: `Purchased ${tokensEarned} tokens (+${bonusTokens} bonus) via PayPal.`,
             });
             
-            // 3. Log the financial transaction in a separate history
             const paymentHistoryRef = userRef.collection('paymentHistory').doc(orderID);
             batch.set(paymentHistoryRef, {
                 orderId: orderID,
@@ -161,7 +163,6 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
                 createdAt: FieldValue.serverTimestamp(),
             });
             
-            // 4. Also log to a central financial ledger for admin auditing
             const centralLedgerRef = db.collection('financialLedger').doc();
              batch.set(centralLedgerRef, {
                 type: 'revenue',
@@ -190,11 +191,11 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
 // --- Server Action: Capture a donation ---
 export async function capturePayPalDonation(orderID: string, userId: string, amount: number): Promise<{success: boolean, message: string}> {
     
-    const client = getPayPalClient();
-    const accessToken = await getAccessToken(client);
-    const url = client.environment === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
-
     try {
+        const client = getPayPalClient();
+        const accessToken = await getAccessToken(client);
+        const url = client.environment === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
+
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -217,18 +218,16 @@ export async function capturePayPalDonation(orderID: string, userId: string, amo
             const userRef = db.collection('users').doc(userId);
             const batch = db.batch();
 
-            // 1. Log the financial transaction in the user's payment history
             const paymentHistoryRef = userRef.collection('paymentHistory').doc(orderID);
             batch.set(paymentHistoryRef, {
                 orderId: orderID,
                 amount: amountPaid,
                 currency: currency,
                 status: 'COMPLETED',
-                tokensPurchased: 0, // Explicitly 0 for donations
+                tokensPurchased: 0,
                 createdAt: FieldValue.serverTimestamp(),
             });
             
-            // 2. Also log to a central financial ledger for admin auditing
             const centralLedgerRef = db.collection('financialLedger').doc();
              batch.set(centralLedgerRef, {
                 type: 'revenue',
