@@ -12,36 +12,20 @@ interface CreateOrderPayload {
     value: number; // For 'tokens', this is the token amount. For 'donation', this is the dollar amount.
 }
 
-const isProduction = process.env.NODE_ENV === 'production';
+async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
+    // --- TEMPORARY HARDCODED CREDENTIALS FOR DEBUGGING ---
+    const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+    const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
+    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
+    // --- END TEMPORARY ---
 
-// Explicitly select credentials and URLs based on the environment
-const PAYPAL_CLIENT_ID = isProduction 
-    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE 
-    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
-
-const PAYPAL_CLIENT_SECRET = isProduction 
-    ? process.env.PAYPAL_CLIENT_SECRET_LIVE 
-    : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
-
-const PAYPAL_API_BASE_URL = isProduction 
-    ? process.env.PAYPAL_API_BASE_URL_LIVE
-    : process.env.PAYPAL_API_BASE_URL_SANDBOX;
-
-
-async function getAccessToken(log: (message: string) => void): Promise<{ accessToken?: string, error?: string }> {
-    log(`[getAccessToken] START`);
-    log(`[getAccessToken] PAYPAL_CLIENT_ID type: ${typeof PAYPAL_CLIENT_ID}, length: ${PAYPAL_CLIENT_ID?.length || 0}`);
-    log(`[getAccessToken] PAYPAL_API_BASE_URL: ${PAYPAL_API_BASE_URL}`);
-
-    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_API_BASE_URL) {
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
       const errorMsg = 'CRITICAL: PayPal environment variables are missing or not configured for the current environment.';
-      log(`[getAccessToken] FAIL: ${errorMsg}`);
       return { error: errorMsg };
     }
   
     const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
     const url = `${PAYPAL_API_BASE_URL}/v1/oauth2/token`;
-    log(`[getAccessToken] Auth URL: ${url}`);
     
     try {
         const response = await fetch(url, {
@@ -57,24 +41,17 @@ async function getAccessToken(log: (message: string) => void): Promise<{ accessT
 
         if (!response.ok) {
             const errorDetails = data.error_description || JSON.stringify(data);
-            log(`[getAccessToken] FAIL: PayPal Auth Error - ${errorDetails}`);
             return { error: `Failed to get PayPal access token. Details: ${errorDetails}` };
         }
         
-        log(`[getAccessToken] SUCCESS: Token received.`);
         return { accessToken: data.access_token };
     } catch (e: any) {
-        log(`[getAccessToken] CRITICAL FAIL: Fetch error - ${e.message}`);
         return { error: `A network or system error occurred while trying to authenticate with PayPal: ${e.message}` };
     }
 }
 
 
-export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{orderID?: string, error?: string, debugLog?: string[]}> {
-    const debugLog: string[] = [];
-    const log = (message: string) => debugLog.push(message);
-
-    log(`[createPayPalOrder] START. NODE_ENV: ${process.env.NODE_ENV}, isProduction: ${isProduction}`);
+export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{orderID?: string, error?: string}> {
     const { orderType, value } = payload;
     let purchaseAmount = '0.01'; 
 
@@ -83,24 +60,20 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
     } else if (orderType === 'donation') {
         purchaseAmount = value.toFixed(2);
     }
-    log(`[createPayPalOrder] Order Type: ${orderType}, Value: ${value}, Calculated Amount: ${purchaseAmount} USD`);
 
     if (parseFloat(purchaseAmount) <= 0) {
-        const error = 'Invalid purchase amount.';
-        log(`[createPayPalOrder] FAIL: ${error}`);
-        return { error, debugLog };
+        return { error: 'Invalid purchase amount.' };
     }
 
     try {
-        const tokenResult = await getAccessToken(log);
+        const tokenResult = await getAccessToken();
 
         if (tokenResult.error || !tokenResult.accessToken) {
-            return { error: tokenResult.error || 'Unknown authentication error.', debugLog };
+            return { error: tokenResult.error || 'Unknown authentication error.' };
         }
         
         const accessToken = tokenResult.accessToken;
-        const url = `${PAYPAL_API_BASE_URL}/v2/checkout/orders`;
-        log(`[createPayPalOrder] Order Creation URL: ${url}`);
+        const url = `https://api-m.sandbox.paypal.com/v2/checkout/orders`;
 
         const response = await fetch(url, {
             method: 'POST',
@@ -122,34 +95,28 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         const orderData = await response.json();
         
         if (response.ok) {
-            log(`[createPayPalOrder] SUCCESS: Order ID ${orderData.id} created.`);
-            return { orderID: orderData.id, debugLog };
+            return { orderID: orderData.id };
         } else {
              const errorDetails = orderData.message || JSON.stringify(orderData);
-             log(`[createPayPalOrder] FAIL: PayPal Order Creation Error - ${errorDetails}`);
-             return { error: `Failed to create PayPal order. Details: ${errorDetails}`, debugLog };
+             return { error: `Failed to create PayPal order. Details: ${errorDetails}` };
         }
 
     } catch (error: any) {
-        log(`[createPayPalOrder] CRITICAL FAIL: Server Action Error - ${error.message}`);
-        return { error: error.message || 'Failed to create PayPal order on the server.', debugLog };
+        return { error: error.message || 'Failed to create PayPal order on the server.' };
     }
 }
 
 
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
-    const debugLog: string[] = [];
-    const log = (message: string) => debugLog.push(message);
-    
     try {
-        const tokenResult = await getAccessToken(log);
+        const tokenResult = await getAccessToken();
         
         if (tokenResult.error || !tokenResult.accessToken) {
             throw new Error(tokenResult.error || 'Failed to authenticate for payment capture.');
         }
         
         const accessToken = tokenResult.accessToken;
-        const url = `${PAYPAL_API_BASE_URL}/v2/checkout/orders/${orderID}/capture`;
+        const url = `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
 
         const response = await fetch(url, {
             method: 'POST',
@@ -228,17 +195,14 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
 
 
 export async function capturePayPalDonation(orderID: string, userId: string, amount: number): Promise<{success: boolean, message: string}> {
-    const debugLog: string[] = [];
-    const log = (message: string) => debugLog.push(message);
-    
     try {
-        const tokenResult = await getAccessToken(log);
+        const tokenResult = await getAccessToken();
         if (tokenResult.error || !tokenResult.accessToken) {
             throw new Error(tokenResult.error || 'Failed to authenticate for donation capture.');
         }
 
         const accessToken = tokenResult.accessToken;
-        const url = `${PAYPAL_API_BASE_URL}/v2/checkout/orders/${orderID}/capture`;
+        const url = `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
 
         const response = await fetch(url, {
             method: 'POST',
