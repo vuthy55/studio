@@ -15,7 +15,7 @@ import { getPrebuiltLanguageAudioPack, getSavedPhrasesAudioPack } from '@/action
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
-import { unlockLanguagePackAction } from '@/actions/user';
+import { unlockLanguagePackAction, removeDownloadedPackAction } from '@/actions/user';
 
 
 // --- Types ---
@@ -108,11 +108,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         });
 
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
-            const userDocRef = doc(db, 'users', auth.currentUser.uid);
             // This update is crucial to honor the user's deletion choice.
-            await updateDoc(userDocRef, {
-                downloadedPacks: arrayRemove(lang)
-            });
+            await removeDownloadedPackAction(auth.currentUser.uid, lang);
         }
     }, []);
     
@@ -155,20 +152,17 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
 
-                    // --- Smart Auto-Download Logic ---
-                    const unlocked = new Set(profileData.unlockedLanguages || []);
-                    const downloaded = new Set(profileData.downloadedPacks || []);
-                    
-                    const packsToDownload: LanguageCode[] = [];
-                    unlocked.forEach(langCode => {
-                        if (!downloaded.has(langCode)) {
-                            packsToDownload.push(langCode);
-                        }
-                    });
+                    // --- Smart Auto-Download Logic for NEW DEVICES ---
+                    // This logic now correctly checks the server-side `downloadedPacks` list.
+                    // It will download any pack listed in the user's profile if it's not
+                    // already present in the browser's local IndexedDB. This handles
+                    // new device setup without re-downloading deleted packs.
+                    const packsToSync = profileData.downloadedPacks || [];
 
-                    if (packsToDownload.length > 0) {
-                        console.log(`[UserDataContext] Auto-downloading ${packsToDownload.length} missing pack(s):`, packsToDownload);
-                        for (const langCode of packsToDownload) {
+                    for (const langCode of packsToSync) {
+                        const packExistsLocally = !!(await getOfflineAudio(langCode));
+                        if (!packExistsLocally) {
+                             console.log(`[UserDataContext] Pack '${langCode}' found in user profile but not on device. Auto-downloading.`);
                             try {
                                 await loadSingleOfflinePack(langCode);
                             } catch (e) {
@@ -178,7 +172,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     }
                     // --- End Smart Auto-Download Logic ---
 
-                    // --- Load existing offline packs from IndexedDB into state ---
+
+                    // --- Load ALL existing offline packs from IndexedDB into state ---
                     const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
                     const packPromises = allPackKeys.map(key => getOfflineAudio(key));
                     

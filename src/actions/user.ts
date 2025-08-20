@@ -126,3 +126,26 @@ export async function unlockLanguagePackAction(userId: string, lang: LanguageCod
         return { success: false, error: error.message || 'A server error occurred during the transaction.' };
     }
 }
+
+/**
+ * Updates the user's server profile to remove a language from the downloadedPacks list.
+ * This is called when a user explicitly deletes a pack from their device.
+ * @param {string} userId The ID of the user.
+ * @param {LanguageCode} langCode The language code to remove.
+ * @returns {Promise<{success: boolean, error?: string}>} An object indicating success or failure.
+ */
+export async function removeDownloadedPackAction(userId: string, langCode: LanguageCode): Promise<{success: boolean, error?: string}> {
+    if (!userId || !langCode) {
+        return { success: false, error: 'User ID and language code are required.' };
+    }
+    try {
+        const userRef = db.collection('users').doc(userId);
+        await userRef.update({
+            downloadedPacks: FieldValue.arrayRemove(langCode)
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error(`Error removing downloaded pack for user ${userId}:`, error);
+        return { success: false, error: "An unexpected server error occurred." };
+    }
+}
