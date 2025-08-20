@@ -20,7 +20,7 @@ import { auth } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js";
+import type { OnApproveData } from "@paypal/paypal-js";
 import { createPayPalOrder, capturePayPalDonation } from '@/actions/paypal';
 
 
@@ -36,7 +36,7 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const [isProcessing, setIsProcessing] = useState(false);
 
   const presetAmounts = [5, 10, 25];
-  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
+  const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production' ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
 
   const handleCreateOrder = async (): Promise<string> => {
      if (!user) {

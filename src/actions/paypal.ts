@@ -12,21 +12,23 @@ interface CreateOrderPayload {
     value: number; // For 'tokens', this is the token amount. For 'donation', this is the dollar amount.
 }
 
-const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
-const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const PAYPAL_ENVIRONMENT = process.env.NODE_ENV === 'production' ? 'live' : 'sandbox';
+const isProduction = process.env.NODE_ENV === 'production';
+
+const PAYPAL_CLIENT_ID = isProduction ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+const PAYPAL_CLIENT_SECRET = isProduction ? process.env.PAYPAL_CLIENT_SECRET_LIVE : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
+const PAYPAL_API_BASE_URL = isProduction ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 
 
 // This function now returns the token or an error object.
 async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
     if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
-      const errorMsg = 'CRITICAL: PayPal client ID or secret is not configured on the server. Check .env.local file.';
+      const errorMsg = 'CRITICAL: PayPal client ID or secret is not configured for the current environment. Check .env.local file.';
       console.error(errorMsg);
       return { error: errorMsg };
     }
   
     const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
-    const url = PAYPAL_ENVIRONMENT === 'live' ? 'https://api-m.paypal.com/v1/oauth2/token' : 'https://api-m.sandbox.paypal.com/v1/oauth2/token';
+    const url = `${PAYPAL_API_BASE_URL}/v1/oauth2/token`;
 
     try {
         const response = await fetch(url, {
@@ -80,7 +82,7 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         }
         
         const accessToken = tokenResult.accessToken;
-        const url = PAYPAL_ENVIRONMENT === 'live' ? 'https://api-m.paypal.com/v2/checkout/orders' : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
+        const url = `${PAYPAL_API_BASE_URL}/v2/checkout/orders`;
 
         const response = await fetch(url, {
             method: 'POST',
@@ -126,7 +128,7 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
         }
         
         const accessToken = tokenResult.accessToken;
-        const url = PAYPAL_ENVIRONMENT === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
+        const url = `${PAYPAL_API_BASE_URL}/v2/checkout/orders/${orderID}/capture`;
 
         const response = await fetch(url, {
             method: 'POST',
@@ -214,7 +216,7 @@ export async function capturePayPalDonation(orderID: string, userId: string, amo
         }
 
         const accessToken = tokenResult.accessToken;
-        const url = PAYPAL_ENVIRONMENT === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
+        const url = `${PAYPAL_API_BASE_URL}/v2/checkout/orders/${orderID}/capture`;
 
         const response = await fetch(url, {
             method: 'POST',
