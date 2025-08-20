@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -60,7 +59,8 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
     });
 
     if (error || !orderID) {
-        toast({ variant: 'destructive', title: 'Order Creation Failed', description: error, duration: 20000 });
+        const description = typeof error === 'string' ? error : 'An unknown server error occurred.';
+        toast({ variant: 'destructive', title: 'Order Creation Failed', description, duration: 20000 });
         throw new Error(error || 'Could not create PayPal order.');
     }
     return orderID;
