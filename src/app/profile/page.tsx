@@ -15,11 +15,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Import the modular components
 import ProfileSection from './components/ProfileSection';
+import StatsTab from './components/StatsTab';
 import BuddiesSection from './components/BuddiesSection';
 import WalletTab from './components/WalletTab';
 import BillingTab from './components/BillingTab';
 import ReferralsTab from './components/ReferralsTab';
-import StatsTab from './components/StatsTab';
 
 
 function ProfileInfoDialog() {
