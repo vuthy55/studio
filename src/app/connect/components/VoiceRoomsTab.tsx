@@ -431,6 +431,7 @@ export default function VoiceRoomsTab() {
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSummarizing, setIsSummarizing] = useState(false);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -596,6 +597,19 @@ export default function VoiceRoomsTab() {
     const handleOpenEditDialog = (room: ClientSyncRoom) => {
         setEditingRoom(room);
         setActiveMainTab('schedule');
+    };
+    
+    const handleGenerateSummary = async (roomId: string) => {
+        if (!user) return;
+        setIsSummarizing(true);
+        try {
+            await summarizeRoomAction(roomId, user.uid);
+            toast({ title: 'Summary Queued', description: 'The AI is generating your meeting summary. It will appear here shortly.' });
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Summary Failed', description: error.message || 'Could not generate summary.' });
+        } finally {
+            setIsSummarizing(false);
+        }
     };
     
     const handleSubmitRoom = async (e: React.FormEvent) => {
@@ -821,7 +835,10 @@ export default function VoiceRoomsTab() {
                                         <Button
                                             variant="secondary"
                                             size="sm"
+                                            onClick={() => handleGenerateSummary(room.id)}
+                                            disabled={isSummarizing}
                                         >
+                                           {isSummarizing && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                                            <Wand2 className="mr-2 h-4 w-4" />
                                             Generate Summary
                                         </Button>
@@ -853,7 +870,7 @@ export default function VoiceRoomsTab() {
                                     
                                     {isCreator && (
                                         <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
+                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
                                         </div>
                                     )}
                                 </div>
@@ -1124,4 +1141,3 @@ export default function VoiceRoomsTab() {
     );
 }
 
-    
