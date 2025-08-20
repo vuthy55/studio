@@ -451,11 +451,18 @@ function FootprintInfoDialog() {
                 </DialogHeader>
                 <ScrollArea className="max-h-[60vh] pr-4">
                     <div className="space-y-6 py-4 text-sm">
-                        <div>
+                         <div className="p-4 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive-foreground">
                             <h4 className="font-semibold mb-1">Disclaimer: It's an Estimate</h4>
-                            <p className="text-muted-foreground">The calculation is a well-informed estimate designed to be a helpful guide, not a precise scientific measurement. Its purpose is to give you a tangible sense of your travel's environmental impact.</p>
+                            <p>The calculation is a well-informed estimate designed to be a helpful guide, not a precise scientific measurement. Its purpose is to give you a tangible sense of your travel's environmental impact.</p>
                         </div>
                         
+                        <div>
+                            <h4 className="font-semibold mb-1">Tracking Your Impact</h4>
+                             <p className="text-muted-foreground">
+                                After each calculation, you'll have the option to save the result. In the "My Footprints" section, you can view your history and add notes to each entry to track how you've chosen to offset your impact, creating a personal log of your eco-conscious travel choices.
+                            </p>
+                        </div>
+
                         <div>
                             <h4 className="font-semibold mb-1">Calculation Breakdown</h4>
                             <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
@@ -498,7 +505,6 @@ function FootprintsTab() {
     const [destinationCountryCode, setDestinationCountryCode] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<EcoFootprintOutput | null>(null);
-    const [debugLog, setDebugLog] = useState<string[]>([]);
     const { settings } = useUserData();
     
     const [isMyFootprintsOpen, setIsMyFootprintsOpen] = useState(false);
@@ -535,19 +541,16 @@ function FootprintsTab() {
 
         setIsLoading(true);
         setResult(null);
-        setDebugLog([]);
 
         try {
-            const { result: calculationResult, debugLog: log, error } = await calculateEcoFootprintAction({ travelDescription, destinationCountryCode }, user.uid);
+            const { result: calculationResult, error } = await calculateEcoFootprintAction({ travelDescription, destinationCountryCode }, user.uid);
             
-            setDebugLog(log || []);
-
             if (error) {
                  throw new Error(error);
             }
             
             if (!calculationResult) {
-                throw new Error("The AI returned an empty or invalid response. Please check the debug log for details.");
+                throw new Error("The AI returned an empty or invalid response. Please try rephrasing your journey.");
             }
             setResult(calculationResult);
             
