@@ -37,8 +37,11 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const [isProcessing, setIsProcessing] = useState(false);
 
   const presetAmounts = [5, 10, 25];
+  
+  const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production'
+    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE
+    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
 
-  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
 
   const handleCreateOrder = async (): Promise<string> => {
      if (!user) {
