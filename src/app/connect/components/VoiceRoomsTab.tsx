@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -824,9 +825,8 @@ export default function VoiceRoomsTab() {
                                                 <Button
                                                     variant="secondary"
                                                     size="sm"
-                                                    disabled={isSummarizing === room.id}
                                                 >
-                                                   {isSummarizing === room.id ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                                   <Wand2 className="mr-2 h-4 w-4" />
                                                     Generate Summary
                                                 </Button>
                                             </AlertDialogTrigger>
@@ -871,7 +871,7 @@ export default function VoiceRoomsTab() {
                                     
                                     {isCreator && (
                                         <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                         </div>
                                     )}
                                 </div>
