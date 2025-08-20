@@ -86,8 +86,8 @@ const getGroundTransportCarbonData = ai.defineTool(
 );
 
 // --- Main Exported Function ---
-export async function calculateEcoFootprint(input: EcoFootprintInput, debugLog: string[]): Promise<EcoFootprintOutput> {
-  return calculateEcoFootprintFlow({ ...input, debugLog });
+export async function calculateEcoFootprint(input: EcoFootprintInput): Promise<EcoFootprintOutput> {
+  return calculateEcoFootprintFlow(input);
 }
 
 
@@ -96,12 +96,11 @@ export async function calculateEcoFootprint(input: EcoFootprintInput, debugLog: 
 const calculateEcoFootprintFlow = ai.defineFlow(
   {
     name: 'calculateEcoFootprintFlow',
-    inputSchema: EcoFootprintInputSchema.extend({ debugLog: z.custom<string[]>() }),
+    inputSchema: EcoFootprintInputSchema,
     outputSchema: EcoFootprintOutputSchema,
   },
-  async ({ travelDescription, destinationCountryCode, debugLog }) => {
+  async ({ travelDescription, destinationCountryCode }) => {
     
-    debugLog.push(`[INFO] Flow started. Fetching settings and Eco Intel for country: ${destinationCountryCode}`);
     const appSettings = await getAppSettingsAction();
     const ecoIntelData = await getCountryEcoIntel(destinationCountryCode);
     
@@ -127,11 +126,6 @@ const calculateEcoFootprintFlow = ai.defineFlow(
 
     const allLocalOpportunities = [...mappedOffsettingOpportunities, ...mappedTourismOpportunities];
 
-
-    debugLog.push(`[INFO] Using ${calculationSources.length} global calculation sources.`);
-    debugLog.push(`[INFO] Found ${allLocalOpportunities.length} local opportunities from the database.`);
-    
-    debugLog.push(`[INFO] Calling AI to analyze journey and use tools.`);
     const { output } = await ai.generate({
       prompt: `You are an expert travel carbon footprint analyst. Your task is to analyze the user's travel story and calculate their total carbon footprint in kg CO2.
 
@@ -174,11 +168,9 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     });
 
     if (!output) {
-      debugLog.push('[FAIL] AI generation returned a null or undefined output.');
       throw new Error("AI failed to generate a valid response.");
     }
     
-    debugLog.push('[SUCCESS] AI analysis complete. Returning structured output.');
     return output;
   }
 );

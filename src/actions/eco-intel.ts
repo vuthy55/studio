@@ -67,7 +67,7 @@ export async function calculateEcoFootprintAction(input: EcoFootprintInput, user
 
         // Step 2: Run the AI flow AFTER the transaction has succeeded.
         debugLog.push(`[INFO] Executing calculateEcoFootprintFlow...`);
-        const flowResult = await calculateEcoFootprint(input, debugLog);
+        const flowResult = await calculateEcoFootprint(input);
         
         debugLog.push('[SUCCESS] AI analysis complete. Returning structured output.');
         return { result: flowResult, debugLog };

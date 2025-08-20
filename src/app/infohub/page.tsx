@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense, useCallback } from 'react';
@@ -782,7 +783,7 @@ function FootprintsTab() {
                 </CardContent>
             </Card>
             
-            {(isLoading || result || debugLog.length > 0) && (
+            {(isLoading || result) && (
                  <Card className="mt-6 animate-in fade-in-50">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -862,21 +863,6 @@ function FootprintsTab() {
                                      </ul>
                                  </div>
                             </>
-                        )}
-
-                        {debugLog.length > 0 && (
-                             <Accordion type="single" collapsible>
-                                <AccordionItem value="debug-log">
-                                    <AccordionTrigger>
-                                        <h3 className="font-semibold text-sm flex items-center gap-2"><Info className="h-4 w-4"/> Debug Log</h3>
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <pre className="text-xs p-4 bg-gray-900 text-white rounded-md max-h-60 overflow-auto">
-                                            {debugLog.join('\n')}
-                                        </pre>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            </Accordion>
                         )}
                     </CardContent>
                  </Card>
