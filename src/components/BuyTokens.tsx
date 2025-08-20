@@ -50,21 +50,19 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to make a purchase.' });
         throw new Error('User not logged in');
     }
-    try {
-        const { orderID, error } = await createPayPalOrder({
-            userId: user.uid,
-            orderType: 'tokens',
-            value: tokenAmount,
-        });
+    
+    const { orderID, error } = await createPayPalOrder({
+        userId: user.uid,
+        orderType: 'tokens',
+        value: tokenAmount,
+    });
 
-        if (error || !orderID) {
-            throw new Error(error || 'Could not create PayPal order.');
-        }
-        return orderID;
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-        throw error;
+    if (error || !orderID) {
+        // Display the detailed error from the server
+        toast({ variant: 'destructive', title: 'Order Creation Failed', description: error, duration: 10000 });
+        throw new Error(error || 'Could not create PayPal order.');
     }
+    return orderID;
   };
 
   const handleOnApprove = async (data: OnApproveData) => {
