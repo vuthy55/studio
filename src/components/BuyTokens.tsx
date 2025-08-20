@@ -43,7 +43,7 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
-  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
+  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX || '';
 
   const handleCreateOrder = async (): Promise<string> => {
     if (!user) {
