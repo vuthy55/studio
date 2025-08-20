@@ -8,7 +8,7 @@ import MainHeader from '@/components/layout/MainHeader';
 import { MessageCircle, Users, Radio } from 'lucide-react';
 import { LoaderCircle } from 'lucide-react';
 
-// Dynamically import the tab components to keep the initial page load light.
+// Lazily import the tab components to keep the initial page load light.
 const VibesTab = React.lazy(() => import('@/app/connect/components/VibesTab'));
 const VoiceRoomsTab = React.lazy(() => import('@/app/connect/components/VoiceRoomsTab'));
 const MeetupsTab = React.lazy(() => import('@/app/connect/components/MeetupsTab'));
@@ -18,6 +18,7 @@ function ConnectPageContent() {
     const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'vibes');
 
+    // Configuration for the tabs
     const tabsConfig = [
         { value: 'vibes', label: 'Vibes', icon: MessageCircle, component: <VibesTab /> },
         { value: 'meetups', label: 'Meetups', icon: Users, component: <MeetupsTab /> },
@@ -39,7 +40,7 @@ function ConnectPageContent() {
                  <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
                     {tabsConfig.map((tab) => (
                         <TabsContent key={tab.value} value={tab.value} className="mt-6">
-                            {/* Render component only when its tab is active */}
+                            {/* Render component only when its tab is active to trigger lazy loading */}
                             {activeTab === tab.value && tab.component}
                         </TabsContent>
                     ))}
@@ -56,4 +57,3 @@ export default function ConnectPage() {
         </Suspense>
     );
 }
-
