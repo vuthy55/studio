@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -432,7 +431,6 @@ export default function VoiceRoomsTab() {
     
     const [activeMainTab, setActiveMainTab] = useState('your-rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSummarizing, setIsSummarizing] = useState<string | null>(null);
     
     // Form State
     const [roomTopic, setRoomTopic] = useState('');
@@ -820,29 +818,13 @@ export default function VoiceRoomsTab() {
                                     )}
                                     
                                      {room.status === 'closed' && !room.summary && (
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
-                                                >
-                                                   <Wand2 className="mr-2 h-4 w-4" />
-                                                    Generate Summary
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Generate AI Summary?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This will analyze the meeting transcript to create a summary and a list of action items. This will cost {settings?.summaryTranslationCost || 10} tokens.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => {}}>Confirm & Generate</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                        >
+                                           <Wand2 className="mr-2 h-4 w-4" />
+                                            Generate Summary
+                                        </Button>
                                     )}
 
                                     {canJoin && !isCreator && (
@@ -871,7 +853,7 @@ export default function VoiceRoomsTab() {
                                     
                                     {isCreator && (
                                         <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
+                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
                                         </div>
                                     )}
                                 </div>
@@ -950,9 +932,9 @@ export default function VoiceRoomsTab() {
                             <CardContent>
                                 <form id="create-room-form" onSubmit={handleSubmitRoom} className="space-y-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="topic">Room Topic</Label>
-                                        <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
-                                    </div>
+                                    <Label htmlFor="topic">Room Topic</Label>
+                                    <Input id="topic" value={roomTopic} onChange={(e) => setRoomTopic(e.target.value)} placeholder="e.g., Planning our trip to Angkor Wat" required />
+                                </div>
                                     {!isEditMode && (
                                         <div className="space-y-2">
                                             <Label htmlFor="language">Your Spoken Language</Label>
@@ -1141,3 +1123,5 @@ export default function VoiceRoomsTab() {
         </Card>
     );
 }
+
+    
