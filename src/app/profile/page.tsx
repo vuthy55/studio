@@ -149,7 +149,6 @@ function ProfilePageContent() {
                 
                  {profileTabs.map((tab) => (
                     <TabsContent key={tab.value} value={tab.value} className="mt-6">
-                        {/* Render the active tab's component */}
                         {activeTab === tab.value && tab.component}
                     </TabsContent>
                 ))}
