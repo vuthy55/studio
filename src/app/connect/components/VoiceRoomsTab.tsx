@@ -712,7 +712,6 @@ export default function VoiceRoomsTab() {
                 
                 if (startNow) {
                     router.push(`/sync-room/${newRoomRef.id}`);
-                    return; 
                 }
             }
             
@@ -767,6 +766,7 @@ export default function VoiceRoomsTab() {
         setInviteeEmails(Array.from(currentEmails).join(', '));
     };
 
+
     const renderRoomList = (rooms: ClientSyncRoom[], roomType: 'active' | 'scheduled' | 'closed') => (
          <div className="space-y-4">
             {rooms.length > 0 ? (
@@ -819,15 +819,30 @@ export default function VoiceRoomsTab() {
                                     )}
                                     
                                      {room.status === 'closed' && !room.summary && (
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            onClick={() => {}}
-                                            disabled={true}
-                                        >
-                                           <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                                            Generate Summary
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    disabled={isSummarizing === room.id}
+                                                >
+                                                   {isSummarizing === room.id ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                                    Generate Summary
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Generate AI Summary?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This will analyze the meeting transcript to create a summary and a list of action items. This will cost {settings?.summaryTranslationCost || 10} tokens.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => {}}>Confirm & Generate</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     )}
 
                                     {canJoin && !isCreator && (
@@ -1125,7 +1140,6 @@ export default function VoiceRoomsTab() {
                         </Card>
                     </TabsContent>
                 </Tabs>
-            </Card>
-        </div>
+        </Card>
     );
 }
