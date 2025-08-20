@@ -31,7 +31,6 @@ const PAYPAL_API_BASE_URL = isProduction
 async function getAccessToken(log: (message: string) => void): Promise<{ accessToken?: string, error?: string }> {
     log(`[getAccessToken] START`);
     log(`[getAccessToken] PAYPAL_CLIENT_ID type: ${typeof PAYPAL_CLIENT_ID}, length: ${PAYPAL_CLIENT_ID?.length || 0}`);
-    log(`[getAccessToken] PAYPAL_CLIENT_SECRET type: ${typeof PAYPAL_CLIENT_SECRET}, length: ${PAYPAL_CLIENT_SECRET?.length || 0}`);
     log(`[getAccessToken] PAYPAL_API_BASE_URL: ${PAYPAL_API_BASE_URL}`);
 
     if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_API_BASE_URL) {
@@ -296,5 +295,3 @@ export async function capturePayPalDonation(orderID: string, userId: string, amo
         return { success: false, message: 'Failed to capture donation on the server.' };
     }
 }
-
-    

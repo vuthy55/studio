@@ -195,5 +195,3 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
     </Dialog>
   );
 }
-
-    

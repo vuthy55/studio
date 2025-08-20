@@ -175,5 +175,3 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
     </Dialog>
   );
 }
-
-    
