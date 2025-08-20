@@ -14,15 +14,23 @@ interface CreateOrderPayload {
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const PAYPAL_CLIENT_ID = isProduction ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
-const PAYPAL_CLIENT_SECRET = isProduction ? process.env.PAYPAL_CLIENT_SECRET_LIVE : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
-const PAYPAL_API_BASE_URL = isProduction ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+const PAYPAL_CLIENT_ID = isProduction 
+    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE 
+    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+
+const PAYPAL_CLIENT_SECRET = isProduction 
+    ? process.env.PAYPAL_CLIENT_SECRET_LIVE 
+    : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
+
+const PAYPAL_API_BASE_URL = isProduction 
+    ? process.env.PAYPAL_API_BASE_URL_LIVE
+    : process.env.PAYPAL_API_BASE_URL_SANDBOX;
 
 
 // This function now returns the token or an error object.
 async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
-    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
-      const errorMsg = 'CRITICAL: PayPal client ID or secret is not configured for the current environment. Check .env.local file.';
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_API_BASE_URL) {
+      const errorMsg = 'CRITICAL: PayPal variables are not fully configured for the current environment. Check your .env.local file.';
       console.error(errorMsg);
       return { error: errorMsg };
     }
