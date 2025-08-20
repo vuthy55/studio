@@ -82,8 +82,6 @@ const PhrasebookTab = memo(function PhrasebookTab() {
     
     const [selectedTopicId, setSelectedTopicId] = useLocalStorage<string>('selectedTopicId', phrasebook[0].id);
     const selectedTopic = useMemo(() => phrasebook.find(t => t.id === selectedTopicId) || phrasebook[0], [selectedTopicId]);
-
-    const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceSelection>('selectedVoice', 'default');
     
     const [assessingPhraseId, setAssessingPhraseId] = useState<string | null>(null);
     const [playingPhraseId, setPlayingPhraseId] = useState<string | null>(null);

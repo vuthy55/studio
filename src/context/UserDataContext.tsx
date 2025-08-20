@@ -11,7 +11,7 @@ import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
-import { getLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
+import { getPrebuiltLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
@@ -85,13 +85,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
-        const { audioPack, size } = await getLanguageAudioPack(lang);
+        // Correctly fetch pre-built pack from storage instead of regenerating
+        const { audioPack, size } = await getPrebuiltLanguageAudioPack(lang);
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         
-        // Also update the user's profile to mark this pack as downloaded.
         if (auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            // This is the crucial update that prevents re-downloads on the same device.
             await updateDoc(userDocRef, {
                 downloadedPacks: arrayUnion(lang)
             });
@@ -106,9 +107,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newState;
         });
 
-        // Also update the user's profile to mark this pack as removed.
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            // This update is crucial to honor the user's deletion choice.
             await updateDoc(userDocRef, {
                 downloadedPacks: arrayRemove(lang)
             });
@@ -153,6 +154,29 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
+
+                    // --- Smart Auto-Download Logic ---
+                    const unlocked = new Set(profileData.unlockedLanguages || []);
+                    const downloaded = new Set(profileData.downloadedPacks || []);
+                    
+                    const packsToDownload: LanguageCode[] = [];
+                    unlocked.forEach(langCode => {
+                        if (!downloaded.has(langCode)) {
+                            packsToDownload.push(langCode);
+                        }
+                    });
+
+                    if (packsToDownload.length > 0) {
+                        console.log(`[UserDataContext] Auto-downloading ${packsToDownload.length} missing pack(s):`, packsToDownload);
+                        for (const langCode of packsToDownload) {
+                            try {
+                                await loadSingleOfflinePack(langCode);
+                            } catch (e) {
+                                console.error(`[UserDataContext] Failed to auto-download pack ${langCode}:`, e);
+                            }
+                        }
+                    }
+                    // --- End Smart Auto-Download Logic ---
 
                     // --- Load existing offline packs from IndexedDB into state ---
                     const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
@@ -214,7 +238,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (historyUnsubscribe.current) historyUnsubscribe.current();
             if (savedPhrasesUnsubscribe.current) savedPhrasesUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState]);
+    }, [user, authLoading, clearLocalState, loadSingleOfflinePack]);
     
 
     // --- Firestore Synchronization Logic ---
@@ -486,14 +510,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         try {
             const result = await unlockLanguagePackAction(user.uid, lang, cost);
             if (result.success) {
-                // The server action now handles all DB writes. We just need to update local state optimistically.
-                 setUserProfile(prev => ({
-                    ...prev,
-                    tokenBalance: (prev.tokenBalance || 0) - cost,
-                    unlockedLanguages: [...(prev.unlockedLanguages || []), lang],
-                }));
-                // And then trigger the download.
-                await loadSingleOfflinePack(lang);
+                 // The server action now handles all DB writes. The onSnapshot listener for the
+                 // user profile will automatically update the local state, triggering the auto-download.
+                 // We don't need to do any optimistic updates here, as the listener is the source of truth.
             } else {
                 throw new Error(result.error || 'Server-side unlock failed.');
             }
@@ -504,7 +523,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
              // so the calling component can display a toast.
             throw error;
         }
-    }, [user, settings, userProfile, loadSingleOfflinePack]);
+    }, [user, settings, userProfile]);
 
     const value: UserDataContextType = {
         user,
