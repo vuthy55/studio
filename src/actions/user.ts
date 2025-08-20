@@ -107,7 +107,8 @@ export async function unlockLanguagePackAction(userId: string, lang: LanguageCod
             // 1. Deduct cost and add language atomically
             transaction.update(userRef, {
                 tokenBalance: FieldValue.increment(-cost),
-                unlockedLanguages: FieldValue.arrayUnion(lang)
+                unlockedLanguages: FieldValue.arrayUnion(lang),
+                downloadedPacks: FieldValue.arrayUnion(lang) // Also mark as downloaded
             });
 
             // 2. Add to transaction log
@@ -116,7 +117,7 @@ export async function unlockLanguagePackAction(userId: string, lang: LanguageCod
                 actionType: 'language_pack_download',
                 tokenChange: -cost,
                 timestamp: FieldValue.serverTimestamp(),
-                description: `Unlocked ${lang} language pack.`
+                description: `Unlocked and downloaded ${lang} language pack.`
             });
         });
         return { success: true };

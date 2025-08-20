@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -21,7 +20,7 @@ import { unlockLanguagePackAction } from '@/actions/user';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'transport_intel';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'transport_intel' | 'eco_footprint_spend';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -89,6 +88,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         const { audioPack, size } = await getLanguageAudioPack(lang);
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
+        
+        // Also update the user's profile to mark this pack as downloaded.
+        if (auth.currentUser) {
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            await updateDoc(userDocRef, {
+                downloadedPacks: arrayUnion(lang)
+            });
+        }
     }, []);
     
      const removeOfflinePack = useCallback(async (lang: LanguageCode | 'user_saved_phrases') => {
@@ -98,6 +105,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             delete newState[lang];
             return newState;
         });
+
+        // Also update the user's profile to mark this pack as removed.
+        if (lang !== 'user_saved_phrases' && auth.currentUser) {
+            const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            await updateDoc(userDocRef, {
+                downloadedPacks: arrayRemove(lang)
+            });
+        }
     }, []);
     
     const resyncSavedPhrasesAudio = useCallback(async () => {
@@ -128,34 +143,47 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             isLoggingOut.current = false;
             setIsDataLoading(true);
 
-            // --- Load existing offline packs from IndexedDB into state ---
-            const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-            const packPromises = allPackKeys.map(key => getOfflineAudio(key));
-            
-            Promise.all(packPromises).then(packs => {
-                 const loadedPacks: Record<string, AudioPack> = {};
-                 packs.forEach((pack, index) => {
-                    if(pack) {
-                        const key = allPackKeys[index];
-                        loadedPacks[key] = pack;
-                    }
-                 });
-                 setOfflineAudioPacks(loadedPacks);
-            });
-
+            // --- Listen for profile changes ---
             const userDocRef = doc(db, 'users', user.uid);
             
-            // --- Listen for profile changes ---
-            profileUnsubscribe.current = onSnapshot(userDocRef, (docSnap) => {
+            profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
                 if (isLoggingOut.current) return;
 
                 if (docSnap.exists()) {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
+
+                    // --- Auto-download unlocked but not yet downloaded packs ---
+                    const downloaded = new Set(profileData.downloadedPacks || []);
+                    for (const lang of (profileData.unlockedLanguages || [])) {
+                        if (!downloaded.has(lang) && offlineAudioPackLanguages.includes(lang) && !offlineAudioPacks[lang]) {
+                            try {
+                                await loadSingleOfflinePack(lang);
+                            } catch (e) {
+                                console.error(`Failed to auto-download ${lang}:`, e);
+                            }
+                        }
+                    }
+
                 } else {
                     setUserProfile({});
                 }
+                 // --- Load existing offline packs from IndexedDB into state ---
+                const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
+                const packPromises = allPackKeys.map(key => getOfflineAudio(key));
+                
+                Promise.all(packPromises).then(packs => {
+                    const loadedPacks: Record<string, AudioPack> = {};
+                    packs.forEach((pack, index) => {
+                        if(pack) {
+                            const key = allPackKeys[index];
+                            loadedPacks[key] = pack;
+                        }
+                    });
+                    setOfflineAudioPacks(loadedPacks);
+                });
+
             }, (error) => {
                 console.error("Error listening to user profile:", error);
             });
@@ -197,7 +225,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (historyUnsubscribe.current) historyUnsubscribe.current();
             if (savedPhrasesUnsubscribe.current) savedPhrasesUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState]);
+    }, [user, authLoading, clearLocalState, loadSingleOfflinePack, offlineAudioPacks]);
     
 
     // --- Firestore Synchronization Logic ---
@@ -400,6 +428,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 actionType = 'infohub_intel';
              } else if (description.includes("Transport search")) {
                 actionType = 'transport_intel';
+             } else if (description.includes("carbon footprint")) {
+                actionType = 'eco_footprint_spend';
              }
         } else {
             transactionCost = settings.translationCost || 1;
@@ -474,7 +504,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         try {
             const result = await unlockLanguagePackAction(user.uid, lang, cost);
             if (!result.success) {
-                // Revert optimistic update on failure
+                // Revert optimistic update on server failure
                 setUserProfile(prev => ({
                     ...prev,
                     tokenBalance: (prev.tokenBalance || 0) + cost,
@@ -482,6 +512,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 }));
                 throw new Error(result.error || 'Server-side unlock failed.');
             }
+            // If server succeeds, immediately trigger the download
+            await loadSingleOfflinePack(lang);
+
         } catch (error) {
              // Revert optimistic update on any failure
              setUserProfile(prev => ({
@@ -489,9 +522,9 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 tokenBalance: (prev.tokenBalance || 0) + cost,
                 unlockedLanguages: prev.unlockedLanguages?.filter(l => l !== lang)
             }));
-            throw error; // Re-throw for the UI to catch
+            throw error; // Re-throw for the UI to catch and display
         }
-    }, [user, settings, userProfile]);
+    }, [user, settings, userProfile, loadSingleOfflinePack]);
 
     const value: UserDataContextType = {
         user,
