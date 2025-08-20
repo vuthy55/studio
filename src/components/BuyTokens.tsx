@@ -23,7 +23,6 @@ import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
-import { ScrollArea } from './ui/scroll-area';
 
 interface BuyTokensProps {
   variant?: 'button' | 'icon';
@@ -45,8 +44,8 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
   
   const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE
-    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE!
+    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX!;
 
   const handleCreateOrder = async (): Promise<string> => {
     if (!user) {

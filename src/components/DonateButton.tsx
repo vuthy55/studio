@@ -22,7 +22,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import type { OnApproveData } from "@paypal/paypal-js";
 import { createPayPalOrder, capturePayPalDonation } from '@/actions/paypal';
-import { ScrollArea } from './ui/scroll-area';
 
 
 interface DonateButtonProps {
@@ -39,8 +38,8 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const presetAmounts = [5, 10, 25];
   
   const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE
-    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE!
+    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX!;
 
 
   const handleCreateOrder = async (): Promise<string> => {
@@ -82,6 +81,11 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
           setIsProcessing(false);
           setDialogOpen(false);
       }
+  };
+  
+    const onError = (err: any) => {
+      console.error("PayPal Error:", err);
+      toast({ variant: 'destructive', title: 'PayPal Error', description: 'An error occurred with the PayPal transaction.'});
   };
 
   return (
@@ -149,6 +153,7 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                             style={{ layout: "vertical", label: "donate" }}
                             createOrder={handleCreateOrder}
                             onApprove={handleOnApprove}
+                            onError={onError}
                             disabled={isProcessing}
                         />
                     </PayPalScriptProvider>

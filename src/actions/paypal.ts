@@ -74,9 +74,11 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         return { error: 'Invalid purchase amount.' };
     }
     
-    const PAYPAL_API_BASE_URL = process.env.NODE_ENV === 'production'
+    const isProduction = process.env.NODE_ENV === 'production';
+    const PAYPAL_API_BASE_URL = isProduction
         ? process.env.PAYPAL_API_BASE_URL_LIVE
         : process.env.PAYPAL_API_BASE_URL_SANDBOX;
+
 
     if (!PAYPAL_API_BASE_URL) {
         return { error: 'PayPal API URL is not configured.' };
@@ -126,7 +128,8 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
 
 
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
-    const PAYPAL_API_BASE_URL = process.env.NODE_ENV === 'production'
+    const isProduction = process.env.NODE_ENV === 'production';
+    const PAYPAL_API_BASE_URL = isProduction
         ? process.env.PAYPAL_API_BASE_URL_LIVE
         : process.env.PAYPAL_API_BASE_URL_SANDBOX;
 
@@ -221,7 +224,8 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
 
 
 export async function capturePayPalDonation(orderID: string, userId: string, amount: number): Promise<{success: boolean, message: string}> {
-     const PAYPAL_API_BASE_URL = process.env.NODE_ENV === 'production'
+    const isProduction = process.env.NODE_ENV === 'production';
+    const PAYPAL_API_BASE_URL = isProduction
         ? process.env.PAYPAL_API_BASE_URL_LIVE
         : process.env.PAYPAL_API_BASE_URL_SANDBOX;
 
