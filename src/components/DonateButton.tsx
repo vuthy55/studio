@@ -38,10 +38,10 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const presetAmounts = [5, 10, 25];
   const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 
-  const handleCreateOrder = async (data: Record<string, unknown>, actions: CreateOrderActions) => {
+  const handleCreateOrder = async (): Promise<string> => {
      if (!user) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to donate.' });
-        return '';
+        throw new Error('User not logged in');
     }
     try {
         const { orderID, error } = await createPayPalOrder({
@@ -50,11 +50,13 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
             value: amount,
         });
 
-        if (error) throw new Error(error);
-        return orderID || '';
+        if (error || !orderID) {
+            throw new Error(error || 'Could not create PayPal order.');
+        }
+        return orderID;
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not create PayPal order.' });
-        return '';
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+        throw error;
     }
   };
 
