@@ -21,8 +21,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js";
-import { createPayPalOrder } from '@/actions/paypal';
-import { addLedgerEntry } from '@/services/ledger';
+import { createPayPalOrder, capturePayPalDonation } from '@/actions/paypal';
 
 
 interface DonateButtonProps {
@@ -67,18 +66,12 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
         return;
       }
       try {
-          // Note: For donations, we don't need to call capturePayPalOrder because we don't need to award tokens.
-          // We just log it for our records.
-          await addLedgerEntry({
-              type: 'revenue',
-              source: 'paypal-donation',
-              description: `Donation from ${user.email}`,
-              amount: amount,
-              orderId: data.orderID,
-              userId: user.uid,
-              timestamp: new Date(),
-          });
-          toast({ title: 'Thank You!', description: 'Your generous donation is greatly appreciated!' });
+          const result = await capturePayPalDonation(data.orderID, user.uid, amount);
+          if (result.success) {
+            toast({ title: 'Thank You!', description: result.message });
+          } else {
+            throw new Error(result.message);
+          }
       } catch (error: any) {
           toast({ variant: 'destructive', title: 'Error', description: 'There was an issue logging your donation.' });
       } finally {

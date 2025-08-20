@@ -185,3 +185,70 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
         return { success: false, message: 'Failed to capture payment on the server.' };
     }
 }
+
+
+// --- Server Action: Capture a donation ---
+export async function capturePayPalDonation(orderID: string, userId: string, amount: number): Promise<{success: boolean, message: string}> {
+    
+    const client = getPayPalClient();
+    const accessToken = await getAccessToken(client);
+    const url = client.environment === 'live' ? `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture` : `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+
+        const orderData = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(orderData.message || 'Donation payment was not completed.');
+        }
+
+        if (orderData.status === 'COMPLETED') {
+            const purchaseUnit = orderData.purchase_units[0];
+            const amountPaid = parseFloat(purchaseUnit.payments.captures[0].amount.value);
+            const currency = purchaseUnit.payments.captures[0].amount.currency_code;
+            
+            const userRef = db.collection('users').doc(userId);
+            const batch = db.batch();
+
+            // 1. Log the financial transaction in the user's payment history
+            const paymentHistoryRef = userRef.collection('paymentHistory').doc(orderID);
+            batch.set(paymentHistoryRef, {
+                orderId: orderID,
+                amount: amountPaid,
+                currency: currency,
+                status: 'COMPLETED',
+                tokensPurchased: 0, // Explicitly 0 for donations
+                createdAt: FieldValue.serverTimestamp(),
+            });
+            
+            // 2. Also log to a central financial ledger for admin auditing
+            const centralLedgerRef = db.collection('financialLedger').doc();
+             batch.set(centralLedgerRef, {
+                type: 'revenue',
+                source: 'paypal-donation',
+                description: `Donation`,
+                amount: amountPaid,
+                orderId: orderID,
+                userId: userId,
+                timestamp: FieldValue.serverTimestamp(),
+            });
+
+            await batch.commit();
+
+            return { success: true, message: `Thank you for your generous donation of ${amountPaid} ${currency}!` };
+        } else {
+             return { success: false, message: 'Donation was not completed.' };
+        }
+
+    } catch (error: any) {
+        console.error("Error capturing PayPal donation:", error.message);
+        return { success: false, message: 'Failed to capture donation on the server.' };
+    }
+}
