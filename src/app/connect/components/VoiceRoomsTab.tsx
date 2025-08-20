@@ -871,7 +871,7 @@ export default function VoiceRoomsTab() {
                                     
                                     {isCreator && (
                                         <div {...tourProps.settings}>
-                                            <ManageRoomDialog room={room} onUpdate={fetchInvitedRooms} />
+                                            <ManageRoomDialog room={room} user={user} onUpdate={fetchInvitedRooms} />
                                         </div>
                                     )}
                                 </div>
@@ -964,12 +964,10 @@ export default function VoiceRoomsTab() {
                                             </Select>
                                         </div>
                                     )}
-                                    {!isEditMode && (
-                                        <div className="flex items-center space-x-2 pt-2">
-                                            <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
-                                            <Label htmlFor="start-now">Start meeting immediately</Label>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center space-x-2 pt-2">
+                                        <Checkbox id="start-now" checked={startNow} onCheckedChange={(checked) => setStartNow(!!checked)} />
+                                        <Label htmlFor="start-now">Start meeting immediately</Label>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="duration">Duration (minutes)</Label>
