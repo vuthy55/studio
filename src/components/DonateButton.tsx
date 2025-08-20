@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import type { OnApproveData } from "@paypal/paypal-js";
-import { createPayPalOrder, capturePayPalDonation } from '@/actions/paypal';
+import { createPayPalOrder, capturePayPalDonation, getPayPalClientId } from '@/actions/paypal';
 
 
 interface DonateButtonProps {
@@ -33,13 +34,24 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
   const [amount, setAmount] = useState(5.00);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paypalClientId, setPaypalClientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (dialogOpen) {
+      getPayPalClientId()
+        .then(setPaypalClientId)
+        .catch(err => {
+          console.error("Failed to fetch PayPal Client ID:", err);
+          toast({
+            variant: 'destructive',
+            title: 'Configuration Error',
+            description: 'Could not load PayPal configuration from the server.'
+          });
+        });
+    }
+  }, [dialogOpen, toast]);
 
   const presetAmounts = [5, 10, 25];
-  
-  const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE!
-    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX!;
-
 
   const handleCreateOrder = async (): Promise<string> => {
      if (!user) {
@@ -146,8 +158,8 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                         <span>Processing donation...</span>
                     </div>
                 )}
-                {PAYPAL_CLIENT_ID && user ? (
-                    <PayPalScriptProvider options={{ "clientId": PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+                {paypalClientId ? (
+                    <PayPalScriptProvider options={{ "clientId": paypalClientId, currency: "USD", intent: "capture" }}>
                         <PayPalButtons 
                             style={{ layout: "vertical", label: "donate" }}
                             createOrder={handleCreateOrder}
@@ -157,12 +169,15 @@ export default function DonateButton({ variant = 'button' }: DonateButtonProps) 
                         />
                     </PayPalScriptProvider>
                 ) : (
-                    <p className="text-center text-sm text-destructive">
-                        { !user ? "Please log in to make a donation." : "PayPal is not configured." }
-                    </p>
+                    <div className="flex justify-center items-center h-24">
+                        <LoaderCircle className="animate-spin" />
+                    </div>
                 )}
+                 {!user && <p className="text-center text-sm text-destructive">Please log in to make a donation.</p>}
             </div>
         </DialogContent>
     </Dialog>
   );
 }
+
+    

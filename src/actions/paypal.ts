@@ -1,8 +1,24 @@
+
 'use server';
 
 import { db } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAppSettingsAction } from './settings';
+
+/**
+ * Returns the PayPal Client ID for the current environment.
+ * This is a server action to securely provide the client-side script with the correct ID.
+ * For now, it is hardcoded to only return the SANDBOX ID.
+ * @returns {Promise<string>} The PayPal Client ID.
+ */
+export async function getPayPalClientId(): Promise<string> {
+    const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+    if (!clientId) {
+        // This error will be caught by the client and displayed to the user.
+        throw new Error('PayPal Client ID for Sandbox is not configured on the server.');
+    }
+    return clientId;
+}
 
 
 interface CreateOrderPayload {
@@ -11,24 +27,15 @@ interface CreateOrderPayload {
     value: number; // For 'tokens', this is the token amount. For 'donation', this is the dollar amount.
 }
 
+// This function will now ONLY use Sandbox credentials.
 async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+    const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
+    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
 
-    const PAYPAL_CLIENT_ID = isProduction 
-        ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE 
-        : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
-
-    const PAYPAL_CLIENT_SECRET = isProduction 
-        ? process.env.PAYPAL_CLIENT_SECRET_LIVE 
-        : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
-    
-    const PAYPAL_API_BASE_URL = isProduction
-        ? process.env.PAYPAL_API_BASE_URL_LIVE
-        : process.env.PAYPAL_API_BASE_URL_SANDBOX;
-
-
-    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_API_BASE_URL) {
-      const errorMsg = 'CRITICAL: PayPal environment variables are missing or not configured for the current environment.';
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+      const errorMsg = 'CRITICAL: PayPal Sandbox environment variables are missing.';
+      console.error(errorMsg);
       return { error: errorMsg };
     }
   
@@ -49,11 +56,13 @@ async function getAccessToken(): Promise<{ accessToken?: string, error?: string 
 
         if (!response.ok) {
             const errorDetails = data.error_description || JSON.stringify(data);
+            console.error(`[PayPal Auth Error] Status: ${response.status}, Details: ${errorDetails}`);
             return { error: `Failed to get PayPal access token. Details: ${errorDetails}` };
         }
         
         return { accessToken: data.access_token };
     } catch (e: any) {
+        console.error("[PayPal Auth] Network/System Error:", e);
         return { error: `A network or system error occurred while trying to authenticate with PayPal: ${e.message}` };
     }
 }
@@ -73,16 +82,7 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         return { error: 'Invalid purchase amount.' };
     }
     
-    const isProduction = process.env.NODE_ENV === 'production';
-    const PAYPAL_API_BASE_URL = isProduction
-        ? process.env.PAYPAL_API_BASE_URL_LIVE
-        : process.env.PAYPAL_API_BASE_URL_SANDBOX;
-
-
-    if (!PAYPAL_API_BASE_URL) {
-        return { error: 'PayPal API URL is not configured.' };
-    }
-
+    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
 
     try {
         const tokenResult = await getAccessToken();
@@ -117,24 +117,19 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
             return { orderID: orderData.id };
         } else {
              const errorDetails = orderData.message || JSON.stringify(orderData);
+             console.error(`[PayPal Order Error] Status: ${response.status}, Details: ${errorDetails}`);
              return { error: `Failed to create PayPal order. Details: ${errorDetails}` };
         }
 
     } catch (error: any) {
+        console.error("[PayPal Order] Action failed:", error);
         return { error: error.message || 'Failed to create PayPal order on the server.' };
     }
 }
 
 
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const PAYPAL_API_BASE_URL = isProduction
-        ? process.env.PAYPAL_API_BASE_URL_LIVE
-        : process.env.PAYPAL_API_BASE_URL_SANDBOX;
-
-    if (!PAYPAL_API_BASE_URL) {
-        return { success: false, message: 'PayPal API URL is not configured.' };
-    }
+    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
 
     try {
         const tokenResult = await getAccessToken();
@@ -223,14 +218,7 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
 
 
 export async function capturePayPalDonation(orderID: string, userId: string, amount: number): Promise<{success: boolean, message: string}> {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const PAYPAL_API_BASE_URL = isProduction
-        ? process.env.PAYPAL_API_BASE_URL_LIVE
-        : process.env.PAYPAL_API_BASE_URL_SANDBOX;
-
-    if (!PAYPAL_API_BASE_URL) {
-        return { success: false, message: 'PayPal API URL is not configured.' };
-    }
+    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
 
     try {
         const tokenResult = await getAccessToken();
@@ -296,3 +284,5 @@ export async function capturePayPalDonation(orderID: string, userId: string, amo
         return { success: false, message: 'Failed to capture donation on the server.' };
     }
 }
+
+    

@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import type { OnApproveData } from "@paypal/paypal-js";
-import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
+import { createPayPalOrder, capturePayPalOrder, getPayPalClientId } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
@@ -39,13 +40,27 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [tokenAmount, setTokenAmount] = useState(500);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [paypalClientId, setPaypalClientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch the client ID from the server when the component mounts
+    // or when the dialog is opened, to ensure it's always available.
+    if (dialogOpen) {
+      getPayPalClientId()
+        .then(setPaypalClientId)
+        .catch(err => {
+          console.error("Failed to fetch PayPal Client ID:", err);
+          toast({
+            variant: 'destructive',
+            title: 'Configuration Error',
+            description: 'Could not load PayPal configuration from the server.'
+          });
+        });
+    }
+  }, [dialogOpen, toast]);
 
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
   
-  const PAYPAL_CLIENT_ID = process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE!
-    : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX!;
-
   const handleCreateOrder = async (): Promise<string> => {
     if (!user) {
         toast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to make a purchase.' });
@@ -159,8 +174,8 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                         <span>Processing payment...</span>
                     </div>
                 )}
-                 {PAYPAL_CLIENT_ID ? (
-                    <PayPalScriptProvider options={{ "clientId": PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+                 {paypalClientId ? (
+                    <PayPalScriptProvider options={{ "clientId": paypalClientId, currency: "USD", intent: "capture" }}>
                         <PayPalButtons 
                             style={{ layout: "vertical", label: "pay" }}
                             createOrder={handleCreateOrder}
@@ -170,7 +185,9 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                         />
                     </PayPalScriptProvider>
                 ) : (
-                    <p className="text-center text-sm text-destructive">PayPal is not configured.</p>
+                    <div className="flex justify-center items-center h-24">
+                        <LoaderCircle className="animate-spin" />
+                    </div>
                 )}
                  {!user && <p className="text-center text-sm text-destructive">Please log in to make a purchase.</p>}
             </div>
@@ -178,3 +195,5 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
     </Dialog>
   );
 }
+
+    
