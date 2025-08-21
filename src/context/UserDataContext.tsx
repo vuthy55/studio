@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -11,7 +12,8 @@ import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
-import { getLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
+import { getSavedPhrasesAudioPack } from '@/actions/audio';
+import { getPrebuiltLanguageAudioPack } from '@/actions/audiopack-admin';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
@@ -85,7 +87,8 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
-        const { audioPack, size } = await getLanguageAudioPack(lang);
+        // Correctly fetches the pre-built pack from storage instead of generating it.
+        const { audioPack, size } = await getPrebuiltLanguageAudioPack(lang);
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         

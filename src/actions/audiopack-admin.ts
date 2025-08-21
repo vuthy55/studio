@@ -8,6 +8,8 @@ import { phrasebook, type LanguageCode } from '@/lib/data';
 import { generateSpeech } from '@/services/tts';
 import { languageToLocaleMap } from '@/lib/utils';
 import { FieldValue, type Timestamp } from 'firebase-admin/firestore';
+import type { AudioPack, AudioPackResult as ClientAudioPackResult } from '@/lib/types';
+
 
 interface AudioPackResult {
   language: LanguageCode;
@@ -266,5 +268,36 @@ export async function applyFreeLanguagesToAllUsers(): Promise<{success: boolean,
     } catch (error: any) {
         console.error("Error applying free languages to all users:", error);
         return { success: false, error: 'An unexpected server error occurred.' };
+    }
+}
+
+/**
+ * Fetches a pre-built language audio pack from Firebase Storage.
+ * This is the correct, performant way for clients to get packs.
+ * @param lang The language code for the pack to fetch.
+ * @returns A promise that resolves to an AudioPackResult object.
+ */
+export async function getPrebuiltLanguageAudioPack(lang: LanguageCode): Promise<ClientAudioPackResult> {
+    const bucket = getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+    const fileName = `audio-packs/${lang}.json`;
+    const file = bucket.file(fileName);
+
+    try {
+        const [exists] = await file.exists();
+        if (!exists) {
+            throw new Error(`Language pack for "${lang}" does not exist in storage.`);
+        }
+
+        const [buffer] = await file.download();
+        const audioPack: AudioPack = JSON.parse(buffer.toString());
+        
+        return {
+            audioPack,
+            size: buffer.length,
+        };
+
+    } catch (error: any) {
+        console.error(`[AudioPack] Failed to fetch pre-built pack for ${lang}:`, error);
+        throw new Error(`Could not download the language pack. Please try again later. Details: ${error.message}`);
     }
 }

@@ -1,4 +1,5 @@
 
+
 import type { FieldValue, Timestamp as ClientTimestamp } from 'firebase/firestore';
 import type { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import type { AzureLanguageCode } from './azure-languages';
@@ -280,6 +281,11 @@ export type SavedPhrase = {
 export type AudioPack = {
   [phraseId: string]: string; // phraseId: base64 audio data URI
 };
+
+export interface AudioPackResult {
+    audioPack: AudioPack;
+    size: number; // size in bytes
+}
 
 export interface FeedbackSubmission {
     id: string;
