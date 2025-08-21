@@ -1,25 +1,23 @@
 
+
 "use client";
 
-import { useState, memo, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MainHeader from '@/components/layout/MainHeader';
 import { BookOpen, Languages, LoaderCircle } from 'lucide-react';
-import PhrasebookTab from './PhrasebookTab';
-import TranslatorTab from './TranslatorTab';
 
-// Memoize components to prevent re-renders when switching tabs
-const MemoizedPhrasebookTab = PhrasebookTab;
-const MemoizedTranslatorTab = TranslatorTab;
+const PhrasebookTab = React.lazy(() => import('./PhrasebookTab'));
+const TranslatorTab = React.lazy(() => import('./TranslatorTab'));
 
 function LearnPageContent() {
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'phrasebook');
+    const [activeTab, setActiveTab] = React.useState(searchParams.get('tab') || 'phrasebook');
 
     const tabsConfig = [
-        { value: 'phrasebook', label: 'Phrasebook', icon: BookOpen, component: <MemoizedPhrasebookTab /> },
-        { value: 'translator', label: 'Translator', icon: Languages, component: <MemoizedTranslatorTab /> },
+        { value: 'phrasebook', label: 'Phrasebook', icon: BookOpen, component: <PhrasebookTab /> },
+        { value: 'translator', label: 'Translator', icon: Languages, component: <TranslatorTab /> },
     ];
 
     return (
@@ -34,11 +32,13 @@ function LearnPageContent() {
                         </TabsTrigger>
                     ))}
                 </TabsList>
-                {tabsConfig.map((tab) => (
-                    <TabsContent key={tab.value} value={tab.value}>
-                        {tab.component}
-                    </TabsContent>
-                ))}
+                <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+                    {tabsConfig.map((tab) => (
+                        <TabsContent key={tab.value} value={tab.value}>
+                            {activeTab === tab.value && tab.component}
+                        </TabsContent>
+                    ))}
+                </Suspense>
             </Tabs>
         </div>
     );
@@ -46,7 +46,7 @@ function LearnPageContent() {
 
 export default function LearnPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+        <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-8rem)]"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
             <LearnPageContent />
         </Suspense>
     );

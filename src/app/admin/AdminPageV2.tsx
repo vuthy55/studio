@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -15,19 +15,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 // Dynamically import the tab components
-const RoomsTab = lazy(() => import('./components/RoomsTab'));
-const UsersTab = lazy(() => import('./components/UsersTab'));
-const FeedbackTab = lazy(() => import('./components/FeedbackTab'));
-const SettingsTab = lazy(() => import('./components/SettingsTab'));
-const IntelTab = lazy(() => import('./components/IntelTab'));
-const FinancialTab = lazy(() => import('./components/FinancialTab'));
-const TokensTab = lazy(() => import('./components/TokensTab'));
-const LanguagePacksTab = lazy(() => import('./components/LanguagePacksTab'));
-const BulkActionsTab = lazy(() => import('./components/BulkActionsTab'));
-const MessagingTab = lazy(() => import('./components/MessagingTab'));
-const ReportsTab = lazy(() => import('./components/ReportsTab'));
-const TransportTab = lazy(() => import('./components/TransportTab'));
-const EcoIntelTab = lazy(() => import('./components/EcoIntelTab'));
+const RoomsTab = React.lazy(() => import('./components/RoomsTab'));
+const UsersTab = React.lazy(() => import('./components/UsersTab'));
+const FeedbackTab = React.lazy(() => import('./components/FeedbackTab'));
+const SettingsTab = React.lazy(() => import('./components/SettingsTab'));
+const IntelTab = React.lazy(() => import('./components/IntelTab'));
+const FinancialTab = React.lazy(() => import('./components/FinancialTab'));
+const TokensTab = React.lazy(() => import('./components/TokensTab'));
+const LanguagePacksTab = React.lazy(() => import('./components/LanguagePacksTab'));
+const BulkActionsTab = React.lazy(() => import('./components/BulkActionsTab'));
+const MessagingTab = React.lazy(() => import('./components/MessagingTab'));
+const ReportsTab = React.lazy(() => import('./components/ReportsTab'));
+const TransportTab = React.lazy(() => import('./components/TransportTab'));
+const EcoIntelTab = React.lazy(() => import('./components/EcoIntelTab'));
 
 
 const LoadingFallback = () => (
@@ -90,14 +90,14 @@ function AdminInfoDialog() {
 export default function AdminPageV2() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'rooms');
+    const [activeTab, setActiveTab] = React.useState(searchParams.get('tab') || 'rooms');
 
     const handleTabChange = (value: string) => {
         setActiveTab(value);
         router.push(`/admin?tab=${value}`, { scroll: false });
     };
     
-    useEffect(() => {
+    React.useEffect(() => {
         const currentTab = searchParams.get('tab');
         if (currentTab && currentTab !== activeTab) {
             setActiveTab(currentTab);
@@ -149,13 +149,13 @@ export default function AdminPageV2() {
                 </TooltipProvider>
 
                 <div className="mt-6">
-                    <Suspense fallback={<LoadingFallback />}>
+                    <React.Suspense fallback={<LoadingFallback />}>
                         {adminTabs.map(tab => (
                             <TabsContent key={tab.value} value={tab.value}>
                                 {activeTab === tab.value ? tab.component : null}
                             </TabsContent>
                         ))}
-                    </Suspense>
+                    </React.Suspense>
                 </div>
             </Tabs>
         </div>

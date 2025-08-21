@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -13,13 +14,13 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 
-// Import the modular components
-import ProfileSection from './components/ProfileSection';
-import BuddiesSection from './components/BuddiesSection';
-import WalletTab from './components/WalletTab';
-import BillingTab from './components/BillingTab';
-import ReferralsTab from './components/ReferralsTab';
-import StatsTab from './components/StatsTab';
+// Dynamically import the tab components
+const ProfileSection = React.lazy(() => import('./components/ProfileSection'));
+const BuddiesSection = React.lazy(() => import('./components/BuddiesSection'));
+const WalletTab = React.lazy(() => import('./components/WalletTab'));
+const BillingTab = React.lazy(() => import('./components/BillingTab'));
+const ReferralsTab = React.lazy(() => import('./components/ReferralsTab'));
+const StatsTab = React.lazy(() => import('./components/StatsTab'));
 
 
 function ProfileInfoDialog() {
@@ -146,13 +147,13 @@ function ProfilePageContent() {
                         ))}
                     </TabsList>
                 </div>
-                
-                 {profileTabs.map((tab) => (
-                    <TabsContent key={tab.value} value={tab.value} className="mt-6">
-                        {/* Render the active tab's component */}
-                        {activeTab === tab.value && tab.component}
-                    </TabsContent>
-                ))}
+                <Suspense fallback={<div className="flex justify-center items-center h-64"><LoaderCircle className="h-10 w-10 animate-spin text-primary" /></div>}>
+                    {profileTabs.map((tab) => (
+                        <TabsContent key={tab.value} value={tab.value} className="mt-6">
+                            {activeTab === tab.value && tab.component}
+                        </TabsContent>
+                    ))}
+                </Suspense>
             </Tabs>
         </div>
     );
