@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoaderCircle, Wallet, Coins, Send, History } from 'lucide-react';
+import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 
 function TokenHistoryDialog() {
@@ -242,24 +243,27 @@ function TokenTransferDialog() {
 
 export default function WalletTab() {
     const { userProfile } = useUserData();
+    const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX || '';
     
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Wallet /> Token Wallet</CardTitle>
-                <CardDescription>View your balance and manage your tokens.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center justify-center gap-4 text-3xl font-bold text-amber-500 border rounded-lg p-4">
-                    <Coins className="h-10 w-10" />
-                    <span>{userProfile?.tokenBalance ?? 0}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                    <BuyTokens />
-                    <TokenTransferDialog />
-                    <TokenHistoryDialog />
-                </div>
-            </CardContent>
-        </Card>
+        <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Wallet /> Token Wallet</CardTitle>
+                    <CardDescription>View your balance and manage your tokens.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-center gap-4 text-3xl font-bold text-amber-500 border rounded-lg p-4">
+                        <Coins className="h-10 w-10" />
+                        <span>{userProfile?.tokenBalance ?? 0}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        <BuyTokens />
+                        <TokenTransferDialog />
+                        <TokenHistoryDialog />
+                    </div>
+                </CardContent>
+            </Card>
+        </PayPalScriptProvider>
     );
 }
