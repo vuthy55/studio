@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, from 'react';
+import React from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter, useSearchParams } from 'next/navigation';
