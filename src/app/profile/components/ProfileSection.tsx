@@ -24,11 +24,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { LoaderCircle, Save, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 
 export default function ProfileSection() {
     const { user, userProfile, logout } = useUserData();
     const { toast } = useToast();
+    const router = useRouter();
 
     const [edits, setEdits] = useState<Partial<UserProfileType>>({});
     const [isSaving, setIsSaving] = useState(false);
@@ -96,6 +98,7 @@ export default function ProfileSection() {
         const result = await anonymizeAndDeactivateUser({ userId: user.uid });
         if (result.success) {
             await logout();
+            router.push('/');
             toast({ title: "Your VibeSync Journey Is Paused", description: "Your account has been deleted, but we'll be here to welcome you back whenever you're ready to sync with the local vibe again." });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete your account.' });
