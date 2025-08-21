@@ -12,14 +12,23 @@ interface CreateOrderPayload {
     value: number; // For 'tokens', this is the token amount. For 'donation', this is the dollar amount.
 }
 
-// This function will now ONLY use Sandbox credentials.
 async function getAccessToken(): Promise<{ accessToken?: string, error?: string }> {
-    const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
-    const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
-    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    const PAYPAL_CLIENT_ID = isProduction 
+        ? process.env.PAYPAL_CLIENT_ID_LIVE
+        : process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX;
+
+    const PAYPAL_CLIENT_SECRET = isProduction
+        ? process.env.PAYPAL_CLIENT_SECRET_LIVE
+        : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
+    
+    const PAYPAL_API_BASE_URL = isProduction
+      ? 'https://api-m.paypal.com'
+      : 'https://api-m.sandbox.paypal.com';
 
     if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
-      const errorMsg = 'CRITICAL: PayPal Sandbox environment variables are missing.';
+      const errorMsg = `CRITICAL: PayPal ${isProduction ? 'Live' : 'Sandbox'} environment variables are missing.`;
       console.error(errorMsg);
       return { error: errorMsg };
     }
@@ -67,7 +76,9 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
         return { error: 'Invalid purchase amount.' };
     }
     
-    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
+    const PAYPAL_API_BASE_URL = process.env.NODE_ENV === 'production'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
 
     try {
         const tokenResult = await getAccessToken();
@@ -114,7 +125,9 @@ export async function createPayPalOrder(payload: CreateOrderPayload): Promise<{o
 
 
 export async function capturePayPalOrder(orderID: string, userId: string): Promise<{success: boolean, message: string}> {
-    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
+    const PAYPAL_API_BASE_URL = process.env.NODE_ENV === 'production'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
 
     try {
         const tokenResult = await getAccessToken();
@@ -203,7 +216,9 @@ export async function capturePayPalOrder(orderID: string, userId: string): Promi
 
 
 export async function capturePayPalDonation(orderID: string, userId: string, amount: number): Promise<{success: boolean, message: string}> {
-    const PAYPAL_API_BASE_URL = 'https://api-m.sandbox.paypal.com';
+    const PAYPAL_API_BASE_URL = process.env.NODE_ENV === 'production'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
 
     try {
         const tokenResult = await getAccessToken();
@@ -269,3 +284,5 @@ export async function capturePayPalDonation(orderID: string, userId: string, amo
         return { success: false, message: 'Failed to capture donation on the server.' };
     }
 }
+
+    

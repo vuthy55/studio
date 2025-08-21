@@ -35,7 +35,13 @@ const nextConfig: NextConfig = {
   env: {
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
+    PAYPAL_MODE: process.env.NODE_ENV === 'production' ? 'live' : 'sandbox',
+    PAYPAL_CLIENT_ID_LIVE: process.env.PAYPAL_CLIENT_ID_LIVE,
+    PAYPAL_CLIENT_SECRET_LIVE: process.env.PAYPAL_CLIENT_SECRET_LIVE,
+    NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_LIVE,
   }
 };
 
 export default nextConfig;
+
+    
