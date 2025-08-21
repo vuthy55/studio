@@ -17,7 +17,8 @@ function getSpeechConfig(): sdk.SpeechConfig {
     if (!azureKey || !azureRegion) {
         throw new Error("Azure credentials are not configured in your .env file.");
     }
-    return sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+    const endpoint = `wss://${azureRegion}.stt.speech.microsoft.com/speech/universal/v2`;
+    return sdk.SpeechConfig.fromEndpoint(new URL(endpoint), azureKey);
 }
 
 export function abortRecognition() {}

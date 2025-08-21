@@ -15,10 +15,12 @@ export interface GenerateSpeechOutput {
 
 export async function generateSpeech(input: GenerateSpeechInput): Promise<GenerateSpeechOutput> {
   const { text, lang, voice } = input;
-  const speechConfig = sdk.SpeechConfig.fromSubscription(
-    process.env.NEXT_PUBLIC_AZURE_TTS_KEY!,
-    process.env.NEXT_PUBLIC_AZURE_TTS_REGION!
-  );
+  const azureKey = process.env.NEXT_PUBLIC_AZURE_TTS_KEY!;
+  const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION!;
+  
+  const endpoint = `wss://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/websocket/v1`;
+  const speechConfig = sdk.SpeechConfig.fromEndpoint(new URL(endpoint), azureKey);
+  
   speechConfig.speechSynthesisLanguage = lang;
 
   const voiceMap: Record<string, { male: string, female: string }> = {
