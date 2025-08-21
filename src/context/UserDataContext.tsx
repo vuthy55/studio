@@ -3,15 +3,16 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, storage } from '@/lib/firebase';
 import { doc, getDoc, getDocs, collection, writeBatch, serverTimestamp, increment, onSnapshot, updateDoc, arrayUnion, arrayRemove, Timestamp, query, orderBy } from 'firebase/firestore';
+import { ref, getDownloadURL } from 'firebase/storage';
 import type { UserProfile, SavedPhrase } from '@/lib/types';
 import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/data';
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
 import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
-import { getLanguageAudioPack, getSavedPhrasesAudioPack } from '@/actions/audio';
+import { getSavedPhrasesAudioPack } from '@/actions/audio';
 import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
@@ -85,7 +86,14 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
-        const { audioPack, size } = await getLanguageAudioPack(lang);
+        const storageRef = ref(storage, `audio-packs/${lang}.json`);
+        const downloadUrl = await getDownloadURL(storageRef);
+        const response = await fetch(downloadUrl);
+        const audioPack: AudioPack = await response.json();
+        
+        // Calculate size before storing
+        const size = new Blob([JSON.stringify(audioPack)]).size;
+
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         

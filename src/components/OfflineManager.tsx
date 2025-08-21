@@ -144,7 +144,7 @@ export default function OfflineManager() {
             <span className="hidden md:inline">Language Packs</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl flex flex-col h-[90vh] md:h-auto md:max-h-[80vh]">
+      <DialogContent className="max-w-2xl flex flex-col h-full max-h-[80vh] md:max-h-auto">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Language Packs</DialogTitle>
           <DialogDescription>
