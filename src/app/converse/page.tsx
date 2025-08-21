@@ -45,8 +45,8 @@ const syncLiveTourSteps: TourStep[] = [
 
 export default function ConversePage() {
   const { user, userProfile, settings, syncLiveUsage, updateSyncLiveUsage } = useUserData();
-  const [persistedLanguages, setPersistedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'th-TH']);
-  const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'th-TH']);
+  const [persistedLanguages, setPersistedLanguages] = useLocalStorage<AzureLanguageCode[]>('syncLiveSelectedLanguages', ['en-US', 'km-KH']);
+  const [selectedLanguages, setSelectedLanguages] = useState<AzureLanguageCode[]>(['en-US', 'km-KH']);
   const [isClient, setIsClient] = useState(false);
   
   const [status, setStatus] = useState<ConversationStatus>('idle');
