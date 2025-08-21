@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
-import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
+import { recognizeWithAutoDetect } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useTour, TourStep } from '@/context/TourContext';
@@ -75,7 +75,6 @@ export default function ConversePage() {
     // It will be called when the component unmounts.
     return () => {
       // abortRecognition is designed to be safe to call even if no recognition is active.
-      abortRecognition();
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -101,7 +100,6 @@ export default function ConversePage() {
     setSpeakingLanguage(null);
     
     timeoutRef.current = setTimeout(() => {
-        abortRecognition();
         setStatus('idle');
         toast({ variant: 'destructive', title: 'Timeout', description: 'Recognition timed out after 30 seconds.' });
     }, 30000);
@@ -343,3 +341,5 @@ export default function ConversePage() {
     </div>
   );
 }
+
+    

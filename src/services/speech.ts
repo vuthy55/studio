@@ -15,8 +15,6 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
     chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
 };
 
-let activeRecognizer: sdk.Recognizer | null = null;
-
 
 // --- Helper Functions ---
 
@@ -34,17 +32,7 @@ function getSpeechConfig(): sdk.SpeechConfig {
 // we don't manage a single global recognizer, so direct abortion is handled
 // by the component logic (e.g., unmounting). This function remains for compatibility
 // but does not have a function body as we let the SDK manage its lifecycle per-call.
-export function abortRecognition() {
-    if (activeRecognizer) {
-        try {
-            activeRecognizer.close();
-        } catch (e) {
-            console.error("Error closing active recognizer:", e);
-        } finally {
-            activeRecognizer = null;
-        }
-    }
-}
+export function abortRecognition() {}
 
 
 // --- Public API ---
@@ -68,12 +56,11 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     const locale = languageToLocaleMap[lang];
     if (!locale) throw new Error(`[SPEECH] Unsupported language for assessment: ${lang}`);
     
-    abortRecognition(); // Ensure no other recognizer is active
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     speechConfig.speechRecognitionLanguage = locale;
     
-    activeRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     
     const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
         referenceText,
@@ -81,10 +68,10 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
         sdk.PronunciationAssessmentGranularity.Phoneme,
         true
     );
-    pronunciationConfig.applyTo(activeRecognizer);
+    pronunciationConfig.applyTo(recognizer);
 
     return new Promise<PronunciationAssessmentResult>((resolve, reject) => {
-        (activeRecognizer as sdk.SpeechRecognizer).recognizeOnceAsync(result => {
+        recognizer.recognizeOnceAsync(result => {
             try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech) {
                     const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
@@ -108,13 +95,13 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
             } catch (e) {
                 reject(e);
             } finally {
-                abortRecognition();
+                recognizer.close();
             }
         }, err => {
             try {
                 reject(new Error(`Recognition error: ${err}`));
             } finally {
-                abortRecognition();
+                recognizer.close();
             }
         });
     });
@@ -129,14 +116,13 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise<string> {
     if (!fromLanguage) throw new Error("A valid language code must be provided for recognition.");
     
-    abortRecognition();
     const speechConfig = getSpeechConfig();
     speechConfig.speechRecognitionLanguage = fromLanguage;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-    activeRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
     return new Promise<string>((resolve, reject) => {
-        (activeRecognizer as sdk.SpeechRecognizer).recognizeOnceAsync(result => {
+        recognizer.recognizeOnceAsync(result => {
             try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                     resolve(result.text);
@@ -157,13 +143,13 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                     reject(new Error(`Could not recognize speech. Reason: ${result.reason}`));
                 }
             } finally {
-                abortRecognition();
+                recognizer.close();
             }
         }, err => {
             try {
                 reject(new Error(`Recognition error: ${err}`));
             } finally {
-                abortRecognition();
+                recognizer.close();
             }
         });
     });
@@ -176,14 +162,13 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
  * @returns A promise resolving to the detected language and text.
  */
 export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
-    abortRecognition();
     const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-    activeRecognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
+    const recognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
     
     return new Promise<{ detectedLang: string, text: string }>((resolve, reject) => {
-        (activeRecognizer as sdk.SpeechRecognizer).recognizeOnceAsync(result => {
+        recognizer.recognizeOnceAsync(result => {
             try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                     const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
@@ -202,14 +187,16 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                     reject(new Error("No recognized speech"));
                 }
             } finally {
-                abortRecognition();
+                recognizer.close();
             }
         }, err => {
             try {
                 reject(new Error(`Auto-detect recognition error: ${err}`));
             } finally {
-                abortRecognition();
+                recognizer.close();
             }
         });
     });
 }
+
+    
