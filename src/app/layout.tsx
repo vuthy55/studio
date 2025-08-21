@@ -7,14 +7,12 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { UserDataProvider } from '@/context/UserDataContext';
 import { TourProvider } from '@/context/TourContext';
 import Tour from '@/components/tour/Tour';
-import { PayPalScriptProvider } from '@paypal/react-paypal-js';
+import { AppProviders } from '@/context/AppProviders';
 
 export const metadata: Metadata = {
   title: 'VibeSync',
   description: 'A modern minimal web app for backpackers in South East Asia.',
 };
-
-const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX || '';
 
 export default function RootLayout({
   children,
@@ -32,7 +30,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+        <AppProviders>
           <UserDataProvider>
             <LanguageProvider>
               <TourProvider>
@@ -49,7 +47,7 @@ export default function RootLayout({
               </TourProvider>
             </LanguageProvider>
           </UserDataProvider>
-        </PayPalScriptProvider>
+        </AppProviders>
       </body>
     </html>
   );
