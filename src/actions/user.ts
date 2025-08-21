@@ -103,6 +103,17 @@ export async function unlockLanguagePackAction(userId: string, lang: LanguageCod
             if (userBalance < cost) {
                 throw new Error('Insufficient tokens.');
             }
+            
+            const unlockedLangs = userDoc.data()?.unlockedLanguages || [];
+            if (unlockedLangs.includes(lang)) {
+                // If the user already unlocked it, don't charge them again.
+                // This can happen in a race condition.
+                // We just add it to their downloaded packs list.
+                transaction.update(userRef, {
+                    downloadedPacks: FieldValue.arrayUnion(lang)
+                });
+                return;
+            }
 
             // 1. Deduct cost and add language atomically
             transaction.update(userRef, {

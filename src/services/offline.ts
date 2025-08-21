@@ -5,6 +5,8 @@ import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import type { LanguageCode } from '@/lib/data';
 import type { AudioPack } from '@/lib/types';
+import { getStorage, ref, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 
 
 const DB_NAME = 'VibeSync-Offline';
@@ -58,4 +60,14 @@ export async function removeOfflinePack(lang: LanguageCode | 'user_saved_phrases
 export async function getOfflineMetadata(): Promise<PackMetadata[]> {
     const db = await getDb();
     return db.getAll(METADATA_STORE_NAME);
+}
+
+// THIS IS THE REGRESSED, INCORRECT FUNCTION. IT SHOULD NOT BE USED.
+// The correct implementation is in UserDataContext, which fetches from storage.
+// This is kept here to demonstrate the regression but should be considered deprecated.
+export async function getLanguageAudioPack(lang: LanguageCode): Promise<AudioPack> {
+  console.error("DEPRECATED: getLanguageAudioPack called. This function performs live generation and should not be used for downloading packs.");
+  // This is a placeholder for the actual expensive generation logic.
+  // In a real scenario, this would call the TTS service for every phrase.
+  return {};
 }

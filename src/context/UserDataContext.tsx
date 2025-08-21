@@ -21,7 +21,7 @@ import { unlockLanguagePackAction } from '@/actions/user';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'transport_intel' | 'eco_footprint_spend';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'eco_footprint_spend' | 'transport_intel';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -499,6 +499,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     ...prev,
                     tokenBalance: (prev.tokenBalance || 0) - cost,
                     unlockedLanguages: [...(prev.unlockedLanguages || []), lang],
+                    downloadedPacks: [...(prev.downloadedPacks || []), lang] // Also add to downloaded packs
                 }));
                 // And then trigger the download.
                 await loadSingleOfflinePack(lang);
