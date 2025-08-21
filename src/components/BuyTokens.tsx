@@ -6,7 +6,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -18,8 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, Wallet } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import type { OnApproveData, CreateOrderActions } from "@paypal/paypal-js";
+import { PayPalButtons } from "@paypal/react-paypal-js";
+import type { OnApproveData } from "@paypal/paypal-js";
 import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -43,7 +42,6 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
-  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX || '';
 
   const handleCreateOrder = async (): Promise<string> => {
     if (!user) {
@@ -158,19 +156,13 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                         <span>Processing payment...</span>
                     </div>
                 )}
-                 {PAYPAL_CLIENT_ID ? (
-                    <PayPalScriptProvider options={{ "clientId": PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
-                        <PayPalButtons 
-                            style={{ layout: "vertical", label: "pay" }}
-                            createOrder={handleCreateOrder}
-                            onApprove={handleOnApprove}
-                            onError={onError}
-                            disabled={isProcessing}
-                        />
-                    </PayPalScriptProvider>
-                ) : (
-                    <p className="text-center text-sm text-destructive">PayPal is not configured.</p>
-                )}
+                 <PayPalButtons 
+                    style={{ layout: "vertical", label: "pay" }}
+                    createOrder={handleCreateOrder}
+                    onApprove={handleOnApprove}
+                    onError={onError}
+                    disabled={isProcessing}
+                />
                  {!user && <p className="text-center text-sm text-destructive">Please log in to make a purchase.</p>}
             </div>
         </DialogContent>
