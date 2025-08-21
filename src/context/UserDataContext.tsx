@@ -10,7 +10,7 @@ import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
-import { getOfflineAudio, removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
+import { removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
 import { getSavedPhrasesAudioPack } from '@/actions/audio';
 import { getPrebuiltLanguageAudioPack } from '@/actions/audiopack-admin';
 import { openDB } from 'idb';

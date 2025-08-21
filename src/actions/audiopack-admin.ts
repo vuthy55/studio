@@ -248,7 +248,6 @@ export async function applyFreeLanguagesToAllUsers(): Promise<{success: boolean,
         for (const userDoc of usersSnapshot.docs) {
             batch.update(userDoc.ref, {
                 unlockedLanguages: FieldValue.arrayUnion(...freePacks),
-                downloadedPacks: FieldValue.arrayUnion(...freePacks),
             });
             count++;
             if (count === 499) {
