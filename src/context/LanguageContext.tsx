@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import * as React from 'react';
 import type { LanguageCode } from '@/lib/data';
 import useLocalStorage from '@/hooks/use-local-storage';
 
@@ -12,9 +12,9 @@ interface LanguageContextType {
   swapLanguages: () => void;
 }
 
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+const LanguageContext = React.createContext<LanguageContextType | undefined>(undefined);
 
-export const LanguageProvider = ({ children }: { children: ReactNode }) => {
+export const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
   const [fromLanguage, setFromLanguage] = useLocalStorage<LanguageCode>('fromLanguage', 'english');
   const [toLanguage, setToLanguage] = useLocalStorage<LanguageCode>('toLanguage', 'khmer');
 
@@ -32,7 +32,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useLanguage = () => {
-  const context = useContext(LanguageContext);
+  const context = React.useContext(LanguageContext);
   if (context === undefined) {
     throw new Error('useLanguage must be used within a LanguageProvider');
   }

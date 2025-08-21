@@ -1,7 +1,7 @@
-
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import * as React from "react"
+import { ReactNode } from 'react';
 
 export interface TourStep {
   selector: string;
@@ -21,26 +21,26 @@ interface TourContextType {
   goToStep: (index: number) => void;
 }
 
-const TourContext = createContext<TourContextType | undefined>(undefined);
+const TourContext = React.createContext<TourContextType | undefined>(undefined);
 
 export const TourProvider = ({ children }: { children: ReactNode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [steps, setSteps] = useState<TourStep[]>([]);
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [stepIndex, setStepIndex] = React.useState(0);
+  const [steps, setSteps] = React.useState<TourStep[]>([]);
 
-  const startTour = useCallback((tourSteps: TourStep[]) => {
+  const startTour = React.useCallback((tourSteps: TourStep[]) => {
     setSteps(tourSteps);
     setStepIndex(0);
     setIsOpen(true);
   }, []);
 
-  const stopTour = useCallback(() => {
+  const stopTour = React.useCallback(() => {
     setIsOpen(false);
     setStepIndex(0);
     setSteps([]);
   }, []);
 
-  const goToNextStep = useCallback(() => {
+  const goToNextStep = React.useCallback(() => {
     if (stepIndex < steps.length - 1) {
       setStepIndex(prev => prev + 1);
     } else {
@@ -48,13 +48,13 @@ export const TourProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [stepIndex, steps.length, stopTour]);
 
-  const goToPrevStep = useCallback(() => {
+  const goToPrevStep = React.useCallback(() => {
     if (stepIndex > 0) {
       setStepIndex(prev => prev - 1);
     }
   }, [stepIndex]);
 
-  const goToStep = useCallback((index: number) => {
+  const goToStep = React.useCallback((index: number) => {
     if (index >= 0 && index < steps.length) {
       setStepIndex(index);
     }
@@ -82,7 +82,7 @@ export const TourProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useTour = () => {
-  const context = useContext(TourContext);
+  const context = React.useContext(TourContext);
   if (context === undefined) {
     throw new Error('useTour must be used within a TourProvider');
   }

@@ -5,14 +5,16 @@ import { Toaster } from '@/components/ui/toaster';
 import ClientSidebar from '@/components/layout/client-sidebar';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { UserDataProvider } from '@/context/UserDataContext';
-import MainHeader from '@/components/layout/MainHeader';
 import { TourProvider } from '@/context/TourContext';
 import Tour from '@/components/tour/Tour';
+import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 export const metadata: Metadata = {
   title: 'VibeSync',
   description: 'A modern minimal web app for backpackers in South East Asia.',
 };
+
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX || '';
 
 export default function RootLayout({
   children,
@@ -30,22 +32,24 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <UserDataProvider>
-          <LanguageProvider>
-            <TourProvider>
-              <SidebarProvider>
-                <ClientSidebar />
-                <SidebarInset>
-                  <main className="relative flex-1 p-4 sm:p-6 lg:p-8">
-                    {children}
-                  </main>
-                </SidebarInset>
-                <Toaster />
-                <Tour />
-              </SidebarProvider>
-            </TourProvider>
-          </LanguageProvider>
-        </UserDataProvider>
+        <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+          <UserDataProvider>
+            <LanguageProvider>
+              <TourProvider>
+                <SidebarProvider>
+                  <ClientSidebar />
+                  <SidebarInset>
+                    <main className="relative flex-1 p-4 sm:p-6 lg:p-8">
+                      {children}
+                    </main>
+                  </SidebarInset>
+                  <Toaster />
+                  <Tour />
+                </SidebarProvider>
+              </TourProvider>
+            </LanguageProvider>
+          </UserDataProvider>
+        </PayPalScriptProvider>
       </body>
     </html>
   );
