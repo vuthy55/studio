@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
@@ -156,22 +155,29 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     const profileData = docSnap.data() as UserProfile;
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
-
-                    // --- Load existing offline packs from IndexedDB into state ---
-                    const allPackKeys: (LanguageCode | 'user_saved_phrases')[] = [...offlineAudioPackLanguages, 'user_saved_phrases'];
-                    const packPromises = allPackKeys.map(key => getOfflineAudio(key));
                     
-                    Promise.all(packPromises).then(packs => {
-                        const loadedPacks: Record<string, AudioPack> = {};
-                        packs.forEach((pack, index) => {
-                            if(pack) {
-                                const key = allPackKeys[index];
-                                loadedPacks[key] = pack;
-                            }
-                        });
-                        setOfflineAudioPacks(loadedPacks);
+                    const localPacks = await Promise.all(
+                        (profileData.downloadedPacks || []).map(async (code) => ({
+                            code,
+                            pack: await getOfflineAudio(code)
+                        }))
+                    );
+                    const loadedPacks: Record<string, AudioPack> = {};
+                    localPacks.forEach(({ code, pack }) => {
+                        if (pack) loadedPacks[code] = pack;
                     });
+                    setOfflineAudioPacks(loadedPacks);
 
+                    // --- Auto-download logic ---
+                    const unlocked = new Set(profileData.unlockedLanguages || []);
+                    const downloaded = new Set(profileData.downloadedPacks || []);
+                    
+                    for (const langCode of unlocked) {
+                        if (!downloaded.has(langCode)) {
+                            console.log(`[Auto-Download] Found unlocked pack "${langCode}" that is not downloaded. Fetching...`);
+                            await loadSingleOfflinePack(langCode);
+                        }
+                    }
                 } else {
                     setUserProfile({});
                 }
@@ -217,7 +223,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             if (historyUnsubscribe.current) historyUnsubscribe.current();
             if (savedPhrasesUnsubscribe.current) savedPhrasesUnsubscribe.current();
         };
-    }, [user, authLoading, clearLocalState]);
+    }, [user, authLoading, clearLocalState, loadSingleOfflinePack]);
     
 
     // --- Firestore Synchronization Logic ---
