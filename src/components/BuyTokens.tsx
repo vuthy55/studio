@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, Wallet } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
-import { PayPalButtons } from "@paypal/react-paypal-js";
+import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import type { OnApproveData } from "@paypal/paypal-js";
 import { createPayPalOrder, capturePayPalOrder } from '@/actions/paypal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
@@ -40,6 +40,8 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
   const [tokenAmount, setTokenAmount] = useState(500);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID_SANDBOX || '';
+
 
   const currentPrice = (tokenAmount * 0.01).toFixed(2);
 
@@ -156,13 +158,15 @@ export default function BuyTokens({ variant = 'button' }: BuyTokensProps) {
                         <span>Processing payment...</span>
                     </div>
                 )}
-                 <PayPalButtons 
-                    style={{ layout: "vertical", label: "pay" }}
-                    createOrder={handleCreateOrder}
-                    onApprove={handleOnApprove}
-                    onError={onError}
-                    disabled={isProcessing}
-                />
+                 <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD", intent: "capture" }}>
+                    <PayPalButtons 
+                        style={{ layout: "vertical", label: "pay" }}
+                        createOrder={handleCreateOrder}
+                        onApprove={handleOnApprove}
+                        onError={onError}
+                        disabled={isProcessing}
+                    />
+                </PayPalScriptProvider>
                  {!user && <p className="text-center text-sm text-destructive">Please log in to make a purchase.</p>}
             </div>
         </DialogContent>
