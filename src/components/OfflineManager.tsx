@@ -153,11 +153,11 @@ export default function OfflineManager() {
         </DialogHeader>
         
         {isLoading ? (
-             <div className="flex justify-center items-center h-full">
+             <div className="flex justify-center items-center flex-grow min-h-0">
                 <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
              </div>
         ) : (
-            <>
+            <div className="flex-grow overflow-hidden flex flex-col gap-4 py-4">
                 <div className="flex items-center space-x-2 px-1 flex-shrink-0">
                     <Checkbox 
                         id="select-all-packs"
@@ -245,7 +245,7 @@ export default function OfflineManager() {
                     })}
                     </div>
                 </ScrollArea>
-            </>
+            </div>
         )}
 
         <DialogFooter className="flex-shrink-0">

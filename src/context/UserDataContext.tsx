@@ -157,20 +157,21 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
                     const localPacks = await Promise.all(
-                        (profileData.downloadedPacks || []).map(async (code) => ({
+                        (offlineAudioPackLanguages || []).map(async (code) => ({
                             code,
                             pack: await getOfflineAudio(code)
                         }))
                     );
+
                     const loadedPacks: Record<string, AudioPack> = {};
                     localPacks.forEach(({ code, pack }) => {
                         if (pack) loadedPacks[code] = pack;
                     });
                     setOfflineAudioPacks(loadedPacks);
-
+                    
                     // --- Auto-download logic ---
                     const unlocked = new Set(profileData.unlockedLanguages || []);
-                    const downloaded = new Set(profileData.downloadedPacks || []);
+                    const downloaded = new Set(Object.keys(loadedPacks));
                     
                     for (const langCode of unlocked) {
                         if (!downloaded.has(langCode)) {

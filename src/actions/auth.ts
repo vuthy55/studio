@@ -98,7 +98,7 @@ export async function signUpUser(
         defaultLanguage: defaultLanguage || 'en-US',
         photoURL: null,
         unlockedLanguages: freeLanguages,
-        downloadedPacks: freeLanguages,
+        downloadedPacks: [],
         downloadedPhraseCount: 0,
     };
     batch.set(newUserRef, newUserProfile);
