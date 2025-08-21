@@ -1,4 +1,3 @@
-
 "use client"
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -167,7 +166,6 @@ export function AppSidebar() {
       <SidebarHeader>
         <Link href="/" className="font-headline text-2xl font-bold text-primary" onClick={closeSidebar}>
           VibeSync
-          <sup className="text-xs font-bold text-black ml-1">Beta</sup>
         </Link>
       </SidebarHeader>
       <SidebarContent>
