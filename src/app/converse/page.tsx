@@ -61,6 +61,12 @@ export default function ConversePage() {
   const { toast } = useToast();
   const { startTour } = useTour();
 
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const log = (message: string) => {
+    setDebugLog(prev => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
+  };
+
+
   const costPerMinute = settings?.costPerSyncLiveMinute || 1;
   const freeMinutesMs = (settings?.freeSyncLiveMinutes || 0) * 60 * 1000;
   
@@ -71,19 +77,18 @@ export default function ConversePage() {
 
 
   useEffect(() => {
-    // This effect now exclusively handles cleanup.
-    // It will be called when the component unmounts.
     return () => {
-      // abortRecognition is designed to be safe to call even if no recognition is active.
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, []); // Empty dependency array ensures this runs only on mount and unmount.
+  }, []); 
 
 
   const startConversationTurn = async () => {
+    log('--- Turn Started ---');
     if (!user || !settings) {
+        log('[FAIL] Pre-check failed: User or settings not available.');
         toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use this feature.' });
         return;
     }
@@ -91,37 +96,46 @@ export default function ConversePage() {
     const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
     
     if (!hasSufficientTokens && (syncLiveUsage || 0) + sessionUsageRef.current >= freeMinutesMs) {
+        log('[FAIL] Pre-check failed: Insufficient tokens for next minute.');
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
         return;
     }
+    log('[INFO] Pre-checks passed.');
 
     setStatus('listening');
     setSpeakingLanguage(null);
+    log(`[STATE] Status set to 'listening'.`);
     
     timeoutRef.current = setTimeout(() => {
+        log('[FAIL] Recognition timed out after 30 seconds.');
         setStatus('idle');
         toast({ variant: 'destructive', title: 'Timeout', description: 'Recognition timed out after 30 seconds.' });
     }, 30000);
     
     const turnStartTime = Date.now();
+    log(`[INFO] Calling recognizeWithAutoDetect with languages: ${selectedLanguages.join(', ')}`);
     
     try {
-        const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
+        const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages, log);
+        log(`[SUCCESS] recognizeWithAutoDetect resolved. Detected: '${detectedLang}', Text: '${originalText}'`);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
         if (!originalText) {
-            // This is the key fix: if no speech is detected, just return and reset UI.
+            log('[INFO] No original text returned. Ending turn gracefully.');
             return;
         }
 
         setStatus('speaking');
+        log(`[STATE] Status set to 'speaking'.`);
 
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
+        log(`[INFO] Target languages for translation: ${targetLanguages.join(', ')}`);
         
         for (const targetLangLocale of targetLanguages) {
             const fromLangLabel = simpleLanguages.find(l => l.value === detectedLang)?.label || detectedLang;
             const toLangLabel = simpleLanguages.find(l => l.value === targetLangLocale)?.label || targetLangLocale;
+            log(`[INFO] Translating from '${fromLangLabel}' to '${toLangLabel}'.`);
             setSpeakingLanguage(toLangLabel);
             
             const translationResult = await translateText({
@@ -130,17 +144,23 @@ export default function ConversePage() {
                 toLanguage: toLangLabel,
             });
             const translatedText = translationResult.translatedText;
+            log(`[SUCCESS] Translation successful. Result: "${translatedText}"`);
             
             const { audioDataUri } = await generateSpeech({ text: translatedText, lang: targetLangLocale });
+            log(`[SUCCESS] Generated speech audio data URI.`);
 
             if (audioPlayerRef.current) {
                 audioPlayerRef.current.src = audioDataUri;
                 await audioPlayerRef.current.play();
+                log(`[INFO] Playing audio for ${toLangLabel}.`);
                 await new Promise<void>(resolve => {
                     if(audioPlayerRef.current) {
-                        audioPlayerRef.current.onended = () => resolve();
+                        audioPlayerRef.current.onended = () => {
+                            log(`[SUCCESS] Audio playback finished for ${toLangLabel}.`);
+                            resolve();
+                        };
                         audioPlayerRef.current.onerror = (e) => {
-                            console.error("Audio playback error:", e);
+                            log(`[FAIL] Audio playback error: ${JSON.stringify(e)}`);
                             resolve(); 
                         };
                     } else {
@@ -150,13 +170,14 @@ export default function ConversePage() {
             }
         }
     } catch (error: any) {
-         if (String(error).includes('aborted') || String(error).includes('canceled')) {
-            // Do not show toast if user manually cancels.
-            console.log('Speech recognition was canceled or aborted.');
+        log(`[FAIL] CATCH BLOCK REACHED: ${error.message}`);
+        if (String(error).includes('aborted') || String(error).includes('canceled')) {
+            log('[INFO] Recognition was canceled or aborted by user/system.');
          } else {
              toast({ variant: "destructive", title: "Recognition Error", description: "Could not recognize speech. Please try again." });
         }
     } finally {
+        log(`[INFO] FINALLY BLOCK REACHED.`);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         const turnDuration = Date.now() - turnStartTime;
         
@@ -165,9 +186,12 @@ export default function ConversePage() {
 
         const tokensIncurred = updateSyncLiveUsage(turnDuration, 'live');
         setSessionTokensUsed(prev => prev + tokensIncurred);
+        log(`[INFO] Turn duration: ${turnDuration}ms. Tokens incurred this turn: ${tokensIncurred}.`);
 
         setStatus('idle');
         setSpeakingLanguage(null);
+        log(`[STATE] Status set to 'idle'.`);
+        log('--- Turn Ended ---');
     }
   };
 
@@ -341,6 +365,21 @@ export default function ConversePage() {
 
 
                 <audio ref={audioPlayerRef} className="hidden" />
+
+                 {debugLog.length > 0 && (
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="debug-log">
+                        <AccordionTrigger className="text-sm">View Debug Log</AccordionTrigger>
+                        <AccordionContent>
+                            <ScrollArea className="h-40 w-full rounded-md border p-2">
+                                <pre className="text-xs whitespace-pre-wrap">
+                                    {debugLog.join('\n')}
+                                </pre>
+                            </ScrollArea>
+                        </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                )}
             </CardContent>
         </Card>
     </div>
