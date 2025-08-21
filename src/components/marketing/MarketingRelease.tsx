@@ -67,52 +67,6 @@ export default function MarketingRelease() {
         <h1 className="text-5xl font-bold text-primary font-headline">VibeSync</h1>
         <p className="text-xl text-muted-foreground mt-2">Speak Their Language. Share Your Vibe.</p>
         <div className="flex items-center justify-center gap-2 mt-4">
-            <Dialog>
-                <DialogTrigger asChild>
-                     <Button variant="outline">
-                        Beta Test (English)
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Beta Tester Information</DialogTitle>
-                        <DialogDescription>
-                            A guide for beta testers to understand the features and provide feedback.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <ScrollArea className="max-h-[70vh] pr-6">
-                        <BetaTesterInfo />
-                    </ScrollArea>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button>Close</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            <Dialog>
-                <DialogTrigger asChild>
-                    <Button variant="outline">
-                        Beta Test (Khmer)
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>ព័ត៌មាន​សម្រាប់​អ្នក​សាកល្បង Beta</DialogTitle>
-                         <DialogDescription>
-                            ការណែនាំ​សម្រាប់​អ្នក​សាកល្បង​ដើម្បី​យល់​ដឹង​ពី​មុខងារ និង​ផ្តល់​មតិកែលម្អ។
-                        </DialogDescription>
-                    </DialogHeader>
-                    <ScrollArea className="max-h-[70vh] pr-6">
-                        <BetaTesterInfoKhmer />
-                    </ScrollArea>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button>បិទ</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
             <Button variant="outline" asChild>
                 <Link href="/story">Traveler's Story</Link>
             </Button>
