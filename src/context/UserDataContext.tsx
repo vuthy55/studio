@@ -156,25 +156,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
-                    const localPacks = await Promise.all(
-                        (offlineAudioPackLanguages || []).map(async (code) => ({
-                            code,
-                            pack: await getOfflineAudio(code)
-                        }))
-                    );
-
-                    const loadedPacks: Record<string, AudioPack> = {};
-                    localPacks.forEach(({ code, pack }) => {
-                        if (pack) loadedPacks[code] = pack;
-                    });
-                    setOfflineAudioPacks(loadedPacks);
-                    
                     // --- Auto-download logic ---
                     const unlocked = new Set(profileData.unlockedLanguages || []);
-                    const downloaded = new Set(Object.keys(loadedPacks));
+                    const downloadedFirestore = new Set(profileData.downloadedPacks || []);
                     
                     for (const langCode of unlocked) {
-                        if (!downloaded.has(langCode)) {
+                        if (!downloadedFirestore.has(langCode)) {
                             console.log(`[Auto-Download] Found unlocked pack "${langCode}" that is not downloaded. Fetching...`);
                             await loadSingleOfflinePack(langCode);
                         }

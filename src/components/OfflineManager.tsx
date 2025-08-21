@@ -38,7 +38,8 @@ export default function OfflineManager() {
 
         const languagePacks: DownloadablePack[] = offlineAudioPackLanguages.map(langCode => {
             const lang = allLanguages.find(l => l.value === langCode);
-            const isDownloaded = !!offlineAudioPacks[langCode];
+            // A pack is considered downloaded if it exists in the user's profile downloadedPacks array
+            const isDownloaded = userProfile?.downloadedPacks?.includes(langCode) ?? false;
             const meta = metadataMap.get(langCode);
             return {
                 code: langCode,
@@ -64,7 +65,7 @@ export default function OfflineManager() {
 
     buildPackList();
 
-  }, [offlineAudioPacks, savedPhrases.length]);
+  }, [offlineAudioPacks, savedPhrases.length, userProfile?.downloadedPacks]);
 
   const handleDownload = async (langCode: LanguageCode) => {
     setIsProcessing(prev => ({...prev, [langCode]: true }));
