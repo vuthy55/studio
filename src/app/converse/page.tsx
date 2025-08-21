@@ -147,7 +147,10 @@ export default function ConversePage() {
             }
         }
     } catch (error: any) {
-         if (error.message !== 'Recognition was aborted.') {
+         if (String(error).includes('aborted') || String(error).includes('canceled')) {
+            // Do not show toast if user manually cancels.
+            console.log('Speech recognition was canceled or aborted.');
+         } else {
              toast({ variant: "destructive", title: "Recognition Error", description: "Could not recognize speech. Please try again." });
         }
     } finally {

@@ -15,6 +15,9 @@ const languageToLocaleMap: Partial<Record<LanguageCode, string>> = {
     chinese: 'zh-CN', french: 'fr-FR', spanish: 'es-ES', italian: 'it-IT',
 };
 
+let activeRecognizer: sdk.Recognizer | null = null;
+
+
 // --- Helper Functions ---
 
 function getSpeechConfig(): sdk.SpeechConfig {
@@ -32,9 +35,15 @@ function getSpeechConfig(): sdk.SpeechConfig {
 // by the component logic (e.g., unmounting). This function remains for compatibility
 // but does not have a function body as we let the SDK manage its lifecycle per-call.
 export function abortRecognition() {
-    // This function is intentionally left blank.
-    // The previous implementation of a global recognizer was causing race conditions.
-    // Each function now creates and destroys its own recognizer instance.
+    if (activeRecognizer) {
+        try {
+            activeRecognizer.close();
+        } catch (e) {
+            console.error("Error closing active recognizer:", e);
+        } finally {
+            activeRecognizer = null;
+        }
+    }
 }
 
 
@@ -59,11 +68,12 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
     const locale = languageToLocaleMap[lang];
     if (!locale) throw new Error(`[SPEECH] Unsupported language for assessment: ${lang}`);
     
+    abortRecognition(); // Ensure no other recognizer is active
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
     speechConfig.speechRecognitionLanguage = locale;
     
-    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+    activeRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
     
     const pronunciationConfig = new sdk.PronunciationAssessmentConfig(
         referenceText,
@@ -71,10 +81,10 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
         sdk.PronunciationAssessmentGranularity.Phoneme,
         true
     );
-    pronunciationConfig.applyTo(recognizer);
+    pronunciationConfig.applyTo(activeRecognizer);
 
     return new Promise<PronunciationAssessmentResult>((resolve, reject) => {
-        recognizer.recognizeOnceAsync(result => {
+        (activeRecognizer as sdk.SpeechRecognizer).recognizeOnceAsync(result => {
             try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech) {
                     const assessment = sdk.PronunciationAssessmentResult.fromResult(result);
@@ -98,15 +108,13 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
             } catch (e) {
                 reject(e);
             } finally {
-                // IMPORTANT: Close the recognizer inside the callback to release resources
-                // only after the final result has been processed.
-                recognizer.close();
+                abortRecognition();
             }
         }, err => {
             try {
                 reject(new Error(`Recognition error: ${err}`));
             } finally {
-                recognizer.close();
+                abortRecognition();
             }
         });
     });
@@ -121,13 +129,14 @@ export async function assessPronunciationFromMic(referenceText: string, lang: La
 export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise<string> {
     if (!fromLanguage) throw new Error("A valid language code must be provided for recognition.");
     
+    abortRecognition();
     const speechConfig = getSpeechConfig();
     speechConfig.speechRecognitionLanguage = fromLanguage;
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+    activeRecognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
 
     return new Promise<string>((resolve, reject) => {
-        recognizer.recognizeOnceAsync(result => {
+        (activeRecognizer as sdk.SpeechRecognizer).recognizeOnceAsync(result => {
             try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                     resolve(result.text);
@@ -148,13 +157,13 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                     reject(new Error(`Could not recognize speech. Reason: ${result.reason}`));
                 }
             } finally {
-                recognizer.close();
+                abortRecognition();
             }
         }, err => {
             try {
                 reject(new Error(`Recognition error: ${err}`));
             } finally {
-                recognizer.close();
+                abortRecognition();
             }
         });
     });
@@ -167,13 +176,14 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
  * @returns A promise resolving to the detected language and text.
  */
 export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): Promise<{ detectedLang: string, text: string }> {
+    abortRecognition();
     const autoDetectConfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(languages);
     const speechConfig = getSpeechConfig();
     const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-    const recognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
+    activeRecognizer = sdk.SpeechRecognizer.FromConfig(speechConfig, autoDetectConfig, audioConfig);
     
     return new Promise<{ detectedLang: string, text: string }>((resolve, reject) => {
-        recognizer.recognizeOnceAsync(result => {
+        (activeRecognizer as sdk.SpeechRecognizer).recognizeOnceAsync(result => {
             try {
                 if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                     const autoDetectResult = sdk.AutoDetectSourceLanguageResult.fromResult(result);
@@ -192,13 +202,13 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                     reject(new Error("No recognized speech"));
                 }
             } finally {
-                recognizer.close();
+                abortRecognition();
             }
         }, err => {
             try {
                 reject(new Error(`Auto-detect recognition error: ${err}`));
             } finally {
-                recognizer.close();
+                abortRecognition();
             }
         });
     });
