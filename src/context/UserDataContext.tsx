@@ -21,7 +21,7 @@ import { unlockLanguagePackAction } from '@/actions/user';
 
 // --- Types ---
 
-type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'transport_intel' | 'eco_footprint_spend';
+type TransactionLogType = 'practice_earn' | 'translation_spend' | 'signup_bonus' | 'purchase' | 'referral_bonus' | 'live_sync_spend' | 'live_sync_online_spend' | 'language_pack_download' | 'infohub_intel' | 'save_phrase_spend' | 'transcript_generation' | 'eco_footprint_spend' | 'transport_intel';
 
 interface RecordPracticeAttemptArgs {
     phraseId: string;
@@ -159,12 +159,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     // --- Auto-download logic ---
                     const unlocked = new Set(profileData.unlockedLanguages || []);
                     const downloadedFirestore = new Set(profileData.downloadedPacks || []);
-                    
-                    for (const langCode of unlocked) {
-                        if (!downloadedFirestore.has(langCode)) {
-                            console.log(`[Auto-Download] Found unlocked pack "${langCode}" that is not downloaded. Fetching...`);
-                            await loadSingleOfflinePack(langCode);
-                        }
+                    const packsToDownload = [...unlocked].filter(lang => !downloadedFirestore.has(lang as LanguageCode));
+
+                    for (const langCode of packsToDownload) {
+                        console.log(`[Auto-Download] Found unlocked pack "${langCode}" that is not downloaded. Fetching...`);
+                        await loadSingleOfflinePack(langCode as LanguageCode);
                     }
                 } else {
                     setUserProfile({});
