@@ -2,6 +2,25 @@
 
 All notable changes to the Sync Online feature will be documented in this file.
 
+## [Regression History]
+
+This section documents critical regressions that have occurred. It serves as a document of truth to learn from past mistakes and as a checklist for preventing these specific issues from recurring in the future.
+
+### Fixed Regressions
+- **`[REGRESSION-FIX]`** **Unwanted Language Pack Re-downloads:** Resolved a bug where the system would automatically re-download language packs that a user had intentionally deleted.
+    - **Root Cause:** The `UserDataContext` login logic was iterating through all of a user's `unlockedLanguages` and triggering a download for each, without first checking if the pack was already present in the user's `downloadedPacks` array. The `removeOfflinePack` function was also failing to update this array in Firestore upon deletion. This completely ignored the user's choice to remove a pack.
+    - **Definitive Solution:** The logic was restored to its original, correct state.
+        1. On login, the context now compares the `unlockedLanguages` array with the `downloadedPacks` array and only initiates downloads for languages that are unlocked but not yet downloaded. This correctly handles first-time setup on a new device without overriding user choices on existing devices.
+        2. The `removeOfflinePack` function now correctly removes the language code from the user's `downloadedPacks` array in Firestore, ensuring the system remembers the user's intent to delete the pack and does not re-download it automatically on a subsequent login.
+
+- **`[REGRESSION-FIX]`** **Language Pack Generation Performance:** Resolved a critical performance and cost regression where the client was re-generating language packs via expensive AI calls on every download, instead of fetching the pre-built packs from Firebase Storage.
+    - **Root Cause:** The `loadSingleOfflinePack` function in the `UserDataContext` was incorrectly calling the `getLanguageAudioPack` server action, which is designed to *generate* TTS audio for the entire phrasebook. The correct behavior is to download a static JSON file.
+    - **Definitive Solution:** A new server action, `getPrebuiltLanguageAudioPack`, was added to the existing `audiopack-admin.ts` module. This function uses the Firebase Admin SDK to read the pre-generated JSON file directly from the Storage bucket. The `UserDataContext` was updated to call this correct, performant function, restoring the download speed and eliminating unnecessary AI costs.
+
+- **`[REGRESSION-FIX]`** **Build Failure due to Syntax Error:** Resolved a complete build failure that prevented deployment.
+    - **Root Cause:** A typo (an extraneous comma) was introduced into an `import` statement in `src/app/admin/AdminPageV2.tsx`, resulting in the line `import React, from 'react';`.
+    - **Definitive Solution:** The typo was removed, resolving the TypeScript syntax error and allowing the build process to complete successfully.
+
 ## [Unreleased]
 
 ### Added
