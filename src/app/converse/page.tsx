@@ -110,6 +110,11 @@ export default function ConversePage() {
         const { detectedLang, text: originalText } = await recognizeWithAutoDetect(selectedLanguages);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
+        if (!originalText) {
+            // This is the key fix: if no speech is detected, just return and reset UI.
+            return;
+        }
+
         setStatus('speaking');
 
         const targetLanguages = selectedLanguages.filter(l => l !== detectedLang);
@@ -341,5 +346,3 @@ export default function ConversePage() {
     </div>
   );
 }
-
-    

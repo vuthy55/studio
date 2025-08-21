@@ -127,7 +127,7 @@ export async function recognizeFromMic(fromLanguage: AzureLanguageCode): Promise
                 if (result.reason === sdk.ResultReason.RecognizedSpeech && result.text) {
                     resolve(result.text);
                 } else if (result.reason === sdk.ResultReason.NoMatch) {
-                    resolve(''); // Resolve with empty string if no match
+                    resolve(''); // Resolve with empty string if no speech is detected.
                 } else if (result.reason === sdk.ResultReason.Canceled) {
                     const cancellation = sdk.CancellationDetails.fromResult(result);
                     if (cancellation.reason === sdk.CancellationReason.Error) {
@@ -176,6 +176,8 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
                         detectedLang: autoDetectResult.language,
                         text: result.text
                     });
+                } else if (result.reason === sdk.ResultReason.NoMatch) {
+                    resolve({ detectedLang: '', text: '' }); // Resolve with empty result if no speech is detected.
                 } else if (result.reason === sdk.ResultReason.Canceled) {
                      const cancellation = sdk.CancellationDetails.fromResult(result);
                      if (cancellation.reason === sdk.CancellationReason.Error) {
@@ -198,5 +200,3 @@ export async function recognizeWithAutoDetect(languages: AzureLanguageCode[]): P
         });
     });
 }
-
-    
