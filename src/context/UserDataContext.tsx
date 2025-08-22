@@ -10,7 +10,7 @@ import { phrasebook, type LanguageCode, offlineAudioPackLanguages } from '@/lib/
 import { getAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { debounce } from 'lodash';
 import type { PracticeHistoryDoc, PracticeHistoryState, AudioPack } from '@/lib/types';
-import { removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB } from '@/services/offline';
+import { removeOfflinePack as removePackFromDB, loadSingleOfflinePack as loadPackToDB, getOfflineMetadata } from '@/services/offline';
 import { getSavedPhrasesAudioPack } from '@/actions/audio';
 import { getPrebuiltLanguageAudioPack } from '@/actions/audiopack-admin';
 import { openDB } from 'idb';
@@ -86,12 +86,10 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
-        // DEFINITIVE FIX: Always use the correct, performant pre-built pack function.
         const { audioPack, size } = await getPrebuiltLanguageAudioPack(lang);
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         
-        // DEFINITIVE FIX: The download action MUST update the database to reflect the new state.
         if (auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -108,7 +106,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newState;
         });
 
-        // DEFINITIVE FIX: The deletion action MUST update the database so the pack is not re-downloaded.
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -155,16 +152,23 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
-                    // --- DEFINITIVE FIX: Robust Auto-Download Logic ---
-                    const unlocked = new Set(profileData.unlockedLanguages || []);
-                    const downloadedInDb = new Set(profileData.downloadedPacks || []);
+                    // --- DEFINITIVE FIX: Robust Auto-Download & Reconciliation Logic ---
+                    const localPacks = await getOfflineMetadata();
+                    const localPackCodes = new Set(localPacks.map(p => p.id));
                     
-                    // Trigger download for any pack that is unlocked BUT NOT listed in the downloadedPacks array.
-                    // This correctly handles first-time user setup on any device.
-                    const packsToDownload = [...unlocked].filter(lang => !downloadedInDb.has(lang as LanguageCode));
+                    const unlockedLangs = new Set(profileData.unlockedLanguages || []);
+                    const downloadedLangsInDb = new Set(profileData.downloadedPacks || []);
+                    
+                    // Case 1: First-time setup for unlocked languages
+                    const packsForFirstDownload = [...unlockedLangs].filter(lang => !downloadedLangsInDb.has(lang as LanguageCode));
+                    
+                    // Case 2: Re-downloading packs that should be on the device but aren't (e.g., new device, cleared cache)
+                    const packsToReconcile = [...downloadedLangsInDb].filter(lang => !localPackCodes.has(lang));
+                    
+                    const allPacksToDownload = [...new Set([...packsForFirstDownload, ...packsToReconcile])];
 
-                    for (const langCode of packsToDownload) {
-                        console.log(`[Auto-Download] Found unlocked pack "${langCode}" not marked as downloaded. Fetching...`);
+                    for (const langCode of allPacksToDownload) {
+                        console.log(`[Auto-Download] Found pack "${langCode}" that needs to be on this device. Fetching...`);
                         await loadSingleOfflinePack(langCode as LanguageCode);
                     }
                 } else {
