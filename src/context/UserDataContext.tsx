@@ -90,6 +90,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         
+        // After a successful download, update Firestore
         if (auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -108,6 +109,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
+            // After a successful deletion, update Firestore
             await updateDoc(userDocRef, {
                 downloadedPacks: arrayRemove(lang)
             });
@@ -159,10 +161,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     const unlockedLangs = new Set(profileData.unlockedLanguages || []);
                     const downloadedLangsInDb = new Set(profileData.downloadedPacks || []);
                     
-                    // Case 1: First-time setup for unlocked languages
+                    // Case 1: First-time setup for unlocked languages that have never been marked as downloaded.
+                    // This is the key for new user setup.
                     const packsForFirstDownload = [...unlockedLangs].filter(lang => !downloadedLangsInDb.has(lang as LanguageCode));
                     
-                    // Case 2: Re-downloading packs that should be on the device but aren't (e.g., new device, cleared cache)
+                    // Case 2: Re-downloading packs that should be on the device but aren't (e.g., new device, cleared cache).
+                    // This compares the "true" list from the DB against the local cache.
                     const packsToReconcile = [...downloadedLangsInDb].filter(lang => !localPackCodes.has(lang));
                     
                     const allPacksToDownload = [...new Set([...packsForFirstDownload, ...packsToReconcile])];

@@ -38,7 +38,7 @@ export default function OfflineManager() {
 
         const languagePacks: DownloadablePack[] = offlineAudioPackLanguages.map(langCode => {
             const lang = allLanguages.find(l => l.value === langCode);
-            // A pack is considered downloaded if it exists in the user's profile downloadedPacks array
+            // A pack is considered downloaded if it's in the user's DB record, which is the source of truth.
             const isDownloaded = userProfile?.downloadedPacks?.includes(langCode) ?? false;
             const meta = metadataMap.get(langCode);
             return {
