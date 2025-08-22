@@ -38,8 +38,8 @@ export default function OfflineManager() {
 
         const languagePacks: DownloadablePack[] = offlineAudioPackLanguages.map(langCode => {
             const lang = allLanguages.find(l => l.value === langCode);
-            // A pack is considered downloaded if it's in the user's DB record, which is the source of truth.
-            const isDownloaded = userProfile?.downloadedPacks?.includes(langCode) ?? false;
+            // The ground truth for "isDownloaded" is now the local IndexedDB cache, not Firestore.
+            const isDownloaded = !!offlineAudioPacks[langCode];
             const meta = metadataMap.get(langCode);
             return {
                 code: langCode,

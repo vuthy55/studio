@@ -109,7 +109,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
-            // After a successful deletion, update Firestore
             await updateDoc(userDocRef, {
                 downloadedPacks: arrayRemove(lang)
             });
@@ -154,27 +153,20 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
-                    // --- DEFINITIVE FIX: Robust Auto-Download & Reconciliation Logic ---
+                    // --- DEFINITIVE, SIMPLIFIED, SELF-HEALING LOGIC ---
                     const localPacks = await getOfflineMetadata();
                     const localPackCodes = new Set(localPacks.map(p => p.id));
-                    
-                    const unlockedLangs = new Set(profileData.unlockedLanguages || []);
-                    const downloadedLangsInDb = new Set(profileData.downloadedPacks || []);
-                    
-                    // Case 1: First-time setup for unlocked languages that have never been marked as downloaded.
-                    // This is the key for new user setup.
-                    const packsForFirstDownload = [...unlockedLangs].filter(lang => !downloadedLangsInDb.has(lang as LanguageCode));
-                    
-                    // Case 2: Re-downloading packs that should be on the device but aren't (e.g., new device, cleared cache).
-                    // This compares the "true" list from the DB against the local cache.
-                    const packsToReconcile = [...downloadedLangsInDb].filter(lang => !localPackCodes.has(lang));
-                    
-                    const allPacksToDownload = [...new Set([...packsForFirstDownload, ...packsToReconcile])];
+                    const downloadedLangsInDb = profileData.downloadedPacks || [];
 
-                    for (const langCode of allPacksToDownload) {
-                        console.log(`[Auto-Download] Found pack "${langCode}" that needs to be on this device. Fetching...`);
-                        await loadSingleOfflinePack(langCode as LanguageCode);
+                    // Reconcile: If a pack is in the DB's "downloaded" list but not on the device, download it.
+                    for (const langCode of downloadedLangsInDb) {
+                        if (!localPackCodes.has(langCode)) {
+                             console.log(`[Reconcile] Found pack "${langCode}" in DB but not on device. Downloading...`);
+                             // No need to await, let them run in the background.
+                             loadSingleOfflinePack(langCode as LanguageCode);
+                        }
                     }
+                    
                 } else {
                     setUserProfile({});
                 }
