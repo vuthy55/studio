@@ -153,20 +153,20 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
-                    // --- DEFINITIVE, SIMPLIFIED, SELF-HEALING LOGIC ---
                     const localPacks = await getOfflineMetadata();
                     const localPackCodes = new Set(localPacks.map(p => p.id));
-                    const downloadedLangsInDb = profileData.downloadedPacks || [];
+                    
+                    const unlockedLangs = new Set(profileData.unlockedLanguages || []);
+                    
+                    // Logic to automatically download any unlocked "free" packs on first login/new device.
+                    const freeSystemPacks = await getFreeLanguagePacks(); 
 
-                    // Reconcile: If a pack is in the DB's "downloaded" list but not on the device, download it.
-                    for (const langCode of downloadedLangsInDb) {
-                        if (!localPackCodes.has(langCode)) {
-                             console.log(`[Reconcile] Found pack "${langCode}" in DB but not on device. Downloading...`);
-                             // No need to await, let them run in the background.
-                             loadSingleOfflinePack(langCode as LanguageCode);
+                    for (const freePackCode of freeSystemPacks) {
+                        if (unlockedLangs.has(freePackCode) && !localPackCodes.has(freePackCode)) {
+                             console.log(`[Auto-Download] User is entitled to free pack "${freePackCode}" but it's missing locally. Downloading...`);
+                             loadSingleOfflinePack(freePackCode).catch(e => console.error(`Failed to auto-download ${freePackCode}`, e));
                         }
                     }
-                    
                 } else {
                     setUserProfile({});
                 }
