@@ -90,7 +90,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         
-        // After a successful download, update Firestore
+        // **DEFINITIVE FIX**: After a successful download, update Firestore.
         if (auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -107,6 +107,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newState;
         });
 
+        // **DEFINITIVE FIX**: After a successful deletion, update Firestore.
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -153,18 +154,26 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
+                    // **DEFINITIVE FIX**: Unified Reconciliation Logic
                     const localPacks = await getOfflineMetadata();
                     const localPackCodes = new Set(localPacks.map(p => p.id));
+                    const freeSystemPacks = new Set(await getFreeLanguagePacks()); 
                     
-                    const unlockedLangs = new Set(profileData.unlockedLanguages || []);
-                    
-                    // Logic to automatically download any unlocked "free" packs on first login/new device.
-                    const freeSystemPacks = await getFreeLanguagePacks(); 
+                    // Re-download packs that are in the DB list but missing locally
+                    const packsInDb = profileData.downloadedPacks || [];
+                    for (const langCode of packsInDb) {
+                        if (!localPackCodes.has(langCode)) {
+                             console.log(`[Reconcile] Found pack "${langCode}" in DB but not on device. Downloading...`);
+                             loadSingleOfflinePack(langCode as LanguageCode).catch(e => console.error(`Failed to reconcile ${langCode}`, e));
+                        }
+                    }
 
-                    for (const freePackCode of freeSystemPacks) {
-                        if (unlockedLangs.has(freePackCode) && !localPackCodes.has(freePackCode)) {
-                             console.log(`[Auto-Download] User is entitled to free pack "${freePackCode}" but it's missing locally. Downloading...`);
-                             loadSingleOfflinePack(freePackCode).catch(e => console.error(`Failed to auto-download ${freePackCode}`, e));
+                    // Auto-download free packs the user is entitled to but has never downloaded
+                    const unlockedLangs = new Set(profileData.unlockedLanguages || []);
+                    for (const langCode of unlockedLangs) {
+                        if (freeSystemPacks.has(langCode) && !localPackCodes.has(langCode) && !packsInDb.includes(langCode)) {
+                            console.log(`[Auto-Download] User is entitled to free pack "${langCode}" but it's missing. Downloading...`);
+                            loadSingleOfflinePack(langCode as LanguageCode).catch(e => console.error(`Failed to auto-download ${langCode}`, e));
                         }
                     }
                 } else {
