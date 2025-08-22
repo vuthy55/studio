@@ -86,12 +86,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     const loadSingleOfflinePack = useCallback(async (lang: LanguageCode) => {
-        // Correctly fetches the pre-built pack from storage instead of generating it.
+        // DEFINITIVE FIX: Always use the correct, performant pre-built pack function.
         const { audioPack, size } = await getPrebuiltLanguageAudioPack(lang);
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         
-        // Also update the user's profile to mark this pack as downloaded.
+        // DEFINITIVE FIX: The download action MUST update the database to reflect the new state.
         if (auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -108,7 +108,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newState;
         });
 
-        // Also update the user's profile to mark this pack as removed.
+        // DEFINITIVE FIX: The deletion action MUST update the database so the pack is not re-downloaded.
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -145,7 +145,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             isLoggingOut.current = false;
             setIsDataLoading(true);
 
-            // --- Listen for profile changes ---
             const userDocRef = doc(db, 'users', user.uid);
             
             profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
@@ -156,13 +155,16 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                     setUserProfile(profileData);
                     setSyncLiveUsage(profileData.syncLiveUsage || 0);
                     
-                    // --- Auto-download logic ---
+                    // --- DEFINITIVE FIX: Robust Auto-Download Logic ---
                     const unlocked = new Set(profileData.unlockedLanguages || []);
-                    const downloadedFirestore = new Set(profileData.downloadedPacks || []);
-                    const packsToDownload = [...unlocked].filter(lang => !downloadedFirestore.has(lang as LanguageCode));
+                    const downloadedInDb = new Set(profileData.downloadedPacks || []);
+                    
+                    // Trigger download for any pack that is unlocked BUT NOT listed in the downloadedPacks array.
+                    // This correctly handles first-time user setup on any device.
+                    const packsToDownload = [...unlocked].filter(lang => !downloadedInDb.has(lang as LanguageCode));
 
                     for (const langCode of packsToDownload) {
-                        console.log(`[Auto-Download] Found unlocked pack "${langCode}" that is not downloaded. Fetching...`);
+                        console.log(`[Auto-Download] Found unlocked pack "${langCode}" not marked as downloaded. Fetching...`);
                         await loadSingleOfflinePack(langCode as LanguageCode);
                     }
                 } else {

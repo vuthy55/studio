@@ -98,7 +98,7 @@ export async function signUpUser(
         defaultLanguage: defaultLanguage || 'en-US',
         photoURL: null,
         unlockedLanguages: freeLanguages,
-        downloadedPacks: [], // CRITICAL FIX: Initialize as empty. Auto-download is handled by the client context.
+        downloadedPacks: [], // DEFINITIVE FIX: Initialize as empty. Auto-download is handled by the client context.
         downloadedPhraseCount: 0,
     };
     batch.set(newUserRef, newUserProfile);
