@@ -147,14 +147,19 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
                 
                 // Step 1: Load essential client-side data first
                 setIsCacheLoading(true);
-                const localPacks = await getOfflineMetadata();
+                const localPacksMeta = await getOfflineMetadata();
+                const packPromises = localPacksMeta.map(meta =>
+                    getOfflineAudio(meta.id as LanguageCode)
+                );
+                const allPacks = await Promise.all(packPromises);
+
                 const localPackMap: Record<string, AudioPack> = {};
-                for (const meta of localPacks) {
-                    const pack = await getOfflineAudio(meta.id as LanguageCode);
-                    if (pack) {
-                        localPackMap[meta.id] = pack;
+                localPacksMeta.forEach((meta, index) => {
+                    if (allPacks[index]) {
+                        localPackMap[meta.id] = allPacks[index]!;
                     }
-                }
+                });
+
                 setOfflineAudioPacks(localPackMap);
                 setIsCacheLoading(false); // Cache is ready, UI can now render accurately
 
