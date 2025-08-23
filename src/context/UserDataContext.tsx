@@ -34,6 +34,7 @@ interface RecordPracticeAttemptArgs {
 interface UserDataContextType {
     user: User | null | undefined;
     loading: boolean;
+    isCacheLoading: boolean;
     userProfile: Partial<UserProfile>;
     practiceHistory: PracticeHistoryState;
     savedPhrases: SavedPhrase[];
@@ -70,6 +71,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [isDataLoading, setIsDataLoading] = useState(true);
+    const [isCacheLoading, setIsCacheLoading] = useState(true);
     const isLoggingOut = useRef(false);
 
     const pendingPracticeSyncs = useRef<Record<string, { phraseData: PracticeHistoryDoc, rewardAmount: number }>>({}).current;
@@ -90,7 +92,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         await loadPackToDB(lang, audioPack, size);
         setOfflineAudioPacks(prev => ({ ...prev, [lang]: audioPack }));
         
-        // **DEFINITIVE FIX**: After a successful download, update Firestore.
         if (auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -107,7 +108,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return newState;
         });
 
-        // **DEFINITIVE FIX**: After a successful deletion, update Firestore.
         if (lang !== 'user_saved_phrases' && auth.currentUser) {
             const userDocRef = doc(db, 'users', auth.currentUser.uid);
             await updateDoc(userDocRef, {
@@ -133,6 +133,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         setSyncLiveUsage(0);
         setOfflineAudioPacks({});
         setIsDataLoading(true);
+        setIsCacheLoading(true);
     }, []);
 
     useEffect(() => {
@@ -140,81 +141,91 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
             return;
         }
 
-        if (user) {
-            isLoggingOut.current = false;
-            setIsDataLoading(true);
-
-            const userDocRef = doc(db, 'users', user.uid);
-            
-            profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
-                if (isLoggingOut.current) return;
-
-                if (docSnap.exists()) {
-                    const profileData = docSnap.data() as UserProfile;
-                    setUserProfile(profileData);
-                    setSyncLiveUsage(profileData.syncLiveUsage || 0);
-                    
-                    // **DEFINITIVE FIX**: Unified Reconciliation Logic
-                    const localPacks = await getOfflineMetadata();
-                    const localPackCodes = new Set(localPacks.map(p => p.id));
-                    const freeSystemPacks = new Set(await getFreeLanguagePacks()); 
-                    
-                    // Re-download packs that are in the DB list but missing locally
-                    const packsInDb = profileData.downloadedPacks || [];
-                    for (const langCode of packsInDb) {
-                        if (!localPackCodes.has(langCode)) {
-                             console.log(`[Reconcile] Found pack "${langCode}" in DB but not on device. Downloading...`);
-                             loadSingleOfflinePack(langCode as LanguageCode).catch(e => console.error(`Failed to reconcile ${langCode}`, e));
-                        }
+        const initializeAndSync = async () => {
+            if (user) {
+                isLoggingOut.current = false;
+                
+                // Step 1: Load essential client-side data first
+                setIsCacheLoading(true);
+                const localPacks = await getOfflineMetadata();
+                const localPackMap: Record<string, AudioPack> = {};
+                for (const meta of localPacks) {
+                    const pack = await getOfflineAudio(meta.id as LanguageCode);
+                    if (pack) {
+                        localPackMap[meta.id] = pack;
                     }
-
-                    // Auto-download free packs the user is entitled to but has never downloaded
-                    const unlockedLangs = new Set(profileData.unlockedLanguages || []);
-                    for (const langCode of unlockedLangs) {
-                        if (freeSystemPacks.has(langCode) && !localPackCodes.has(langCode) && !packsInDb.includes(langCode)) {
-                            console.log(`[Auto-Download] User is entitled to free pack "${langCode}" but it's missing. Downloading...`);
-                            loadSingleOfflinePack(langCode as LanguageCode).catch(e => console.error(`Failed to auto-download ${langCode}`, e));
-                        }
-                    }
-                } else {
-                    setUserProfile({});
                 }
+                setOfflineAudioPacks(localPackMap);
+                setIsCacheLoading(false); // Cache is ready, UI can now render accurately
 
-            }, (error) => {
-                console.error("Error listening to user profile:", error);
-            });
+                // Step 2: Now that client state is stable, connect to Firestore
+                setIsDataLoading(true);
 
-            // --- Listen for practice history changes ---
-            const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
-            historyUnsubscribe.current = onSnapshot(historyCollectionRef, (snapshot) => {
-                if (isLoggingOut.current) return;
-                const historyData: PracticeHistoryState = {};
-                snapshot.forEach(doc => {
-                    historyData[doc.id] = doc.data();
+                const userDocRef = doc(db, 'users', user.uid);
+                
+                profileUnsubscribe.current = onSnapshot(userDocRef, async (docSnap) => {
+                    if (isLoggingOut.current) return;
+
+                    if (docSnap.exists()) {
+                        const profileData = docSnap.data() as UserProfile;
+                        setUserProfile(profileData);
+                        setSyncLiveUsage(profileData.syncLiveUsage || 0);
+                        
+                        // **DEFINITIVE FIX**: Unified Reconciliation Logic
+                        const localPackCodes = new Set(Object.keys(localPackMap));
+                        const freeSystemPacks = new Set(await getFreeLanguagePacks()); 
+                        
+                        // Scenario 1: A pack is in the database's download list but not on the device (new device/cleared cache)
+                        const packsInDb = profileData.downloadedPacks || [];
+                        for (const langCode of packsInDb) {
+                            if (!localPackCodes.has(langCode)) {
+                                 loadSingleOfflinePack(langCode as LanguageCode).catch(e => console.error(`Failed to reconcile ${langCode}`, e));
+                            }
+                        }
+
+                        // Scenario 2: A free pack has been unlocked but never downloaded (e.g., new user first login)
+                        const unlockedLangs = new Set(profileData.unlockedLanguages || []);
+                        for (const langCode of unlockedLangs) {
+                            if (freeSystemPacks.has(langCode) && !localPackCodes.has(langCode) && !packsInDb.includes(langCode)) {
+                                loadSingleOfflinePack(langCode as LanguageCode).catch(e => console.error(`Failed to auto-download ${langCode}`, e));
+                            }
+                        }
+                    } else {
+                        setUserProfile({});
+                    }
+
+                }, (error) => {
+                    console.error("Error listening to user profile:", error);
                 });
-                setPracticeHistory(historyData);
-                setIsDataLoading(false); 
-            }, (error) => {
-                console.error("Error listening to practice history:", error);
+
+                const historyCollectionRef = collection(db, 'users', user.uid, 'practiceHistory');
+                historyUnsubscribe.current = onSnapshot(historyCollectionRef, (snapshot) => {
+                    if (isLoggingOut.current) return;
+                    const historyData: PracticeHistoryState = {};
+                    snapshot.forEach(doc => { historyData[doc.id] = doc.data(); });
+                    setPracticeHistory(historyData);
+                    setIsDataLoading(false); 
+                }, (error) => {
+                    console.error("Error listening to practice history:", error);
+                    setIsDataLoading(false);
+                });
+
+                 const savedPhrasesRef = collection(db, 'users', user.uid, 'savedPhrases');
+                 const savedPhrasesQuery = query(savedPhrasesRef, orderBy('createdAt', 'desc'));
+                 savedPhrasesUnsubscribe.current = onSnapshot(savedPhrasesQuery, (snapshot) => {
+                    if (isLoggingOut.current) return;
+                    const serverPhrases = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as SavedPhrase));
+                    setSavedPhrases(serverPhrases);
+                 }, (error) => { console.error("Error listening to saved phrases:", error); });
+
+            } else {
+                clearLocalState();
                 setIsDataLoading(false);
-            });
-
-             // --- Listen for saved phrases changes ---
-             const savedPhrasesRef = collection(db, 'users', user.uid, 'savedPhrases');
-             const savedPhrasesQuery = query(savedPhrasesRef, orderBy('createdAt', 'desc'));
-             savedPhrasesUnsubscribe.current = onSnapshot(savedPhrasesQuery, (snapshot) => {
-                if (isLoggingOut.current) return;
-                const serverPhrases = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as SavedPhrase));
-                setSavedPhrases(serverPhrases);
-             }, (error) => {
-                console.error("Error listening to saved phrases:", error);
-             });
-
-
-        } else {
-            clearLocalState();
-            setIsDataLoading(false);
-        }
+                setIsCacheLoading(false);
+            }
+        };
+        
+        initializeAndSync();
         
         return () => {
             if (profileUnsubscribe.current) profileUnsubscribe.current();
@@ -493,13 +504,11 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         try {
             const result = await unlockLanguagePackAction(user.uid, lang, cost);
             if (result.success) {
-                // The server action now handles all DB writes. We just need to update local state optimistically.
-                 setUserProfile(prev => ({
+                setUserProfile(prev => ({
                     ...prev,
                     tokenBalance: (prev.tokenBalance || 0) - cost,
                     unlockedLanguages: [...(prev.unlockedLanguages || []), lang],
                 }));
-                // And then trigger the download.
                 await loadSingleOfflinePack(lang);
             } else {
                 throw new Error(result.error || 'Server-side unlock failed.');
@@ -507,8 +516,6 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
 
         } catch (error) {
              console.error('Error in unlockLanguagePack:', error);
-             // Since this is a client-side context, re-throw the error
-             // so the calling component can display a toast.
             throw error;
         }
     }, [user, settings, userProfile, loadSingleOfflinePack]);
@@ -516,6 +523,7 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
     const value: UserDataContextType = {
         user,
         loading: authLoading || isDataLoading,
+        isCacheLoading,
         userProfile,
         practiceHistory,
         savedPhrases,
