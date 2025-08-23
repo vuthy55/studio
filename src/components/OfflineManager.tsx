@@ -156,8 +156,8 @@ export default function OfflineManager() {
                 <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
              </div>
         ) : (
-            <>
-            <div className="flex items-center space-x-2 px-1 pt-4">
+            <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-2 px-1">
                 <Checkbox 
                     id="select-all-packs"
                     onCheckedChange={(checked) => {
@@ -171,8 +171,8 @@ export default function OfflineManager() {
                 />
                 <Label htmlFor="select-all-packs">Select all available for download</Label>
             </div>
-            <ScrollArea className="h-96 pr-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <ScrollArea className="max-h-[50vh]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pr-4">
                 {downloadablePacks.map(pack => {
                     const isUnlocked = pack.code === 'user_saved_phrases' || (userProfile?.unlockedLanguages?.includes(pack.code as LanguageCode) ?? false);
                     const cost = settings?.languageUnlockCost ?? 100;
@@ -244,7 +244,7 @@ export default function OfflineManager() {
                 })}
                 </div>
             </ScrollArea>
-            </>
+            </div>
         )}
 
         <DialogFooter>
