@@ -19,9 +19,8 @@ export async function generateSpeech(input: GenerateSpeechInput): Promise<Genera
   const azureRegion = process.env.NEXT_PUBLIC_AZURE_TTS_REGION!;
   
   const speechConfig = sdk.SpeechConfig.fromSubscription(azureKey, azureRegion);
+  speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm;
   
-  speechConfig.speechSynthesisLanguage = lang;
-
   const voiceMap: Record<string, { male: string, female: string }> = {
     'th-TH': { male: 'th-TH-NiwatNeural', female: 'th-TH-PremwadeeNeural' },
     'vi-VN': { male: 'vi-VN-NamMinhNeural', female: 'vi-VN-HoaiMyNeural' },
@@ -38,16 +37,32 @@ export async function generateSpeech(input: GenerateSpeechInput): Promise<Genera
     'it-IT': { male: 'it-IT-DiegoNeural', female: 'it-IT-ElsaNeural' },
     'en-US': { male: 'en-US-GuyNeural', female: 'en-US-JennyNeural' },
   };
-  
-  if (voice && voice !== 'default' && voiceMap[lang]) {
-    speechConfig.speechSynthesisVoiceName = voiceMap[lang][voice];
-  }
+
+  const selectedVoiceName = (voice && voice !== 'default' && voiceMap[lang]) ? voiceMap[lang][voice] : (voiceMap[lang]?.female || 'en-US-JennyNeural');
+
+  // Escape all 5 special XML characters to ensure valid SSML.
+  const escapedText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const ssml = `
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'>
+        <voice name='${selectedVoiceName}'>
+            <prosody rate='-15.00%'>
+                ${escapedText}
+            </prosody>
+        </voice>
+    </speak>
+  `;
 
   const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
   const audioData = await new Promise<ArrayBuffer>((resolve, reject) => {
-    synthesizer.speakTextAsync(
-      text,
+    synthesizer.speakSsmlAsync(
+      ssml,
       (result) => {
         synthesizer.close();
         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
