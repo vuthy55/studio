@@ -39,17 +39,27 @@ export async function generateSpeech(input: GenerateSpeechInput): Promise<Genera
     'en-US': { male: 'en-US-GuyNeural', female: 'en-US-JennyNeural' },
   };
   
-  // If a specific voice is requested ('male' or 'female') AND the language exists in our map,
-  // set the specific voice name. Otherwise, do nothing and let Azure use its default voice for the language.
+  let voiceName = '';
   if (voice && voice !== 'default' && voiceMap[lang]) {
-    speechConfig.speechSynthesisVoiceName = voiceMap[lang][voice];
+    voiceName = voiceMap[lang][voice];
+    speechConfig.speechSynthesisVoiceName = voiceName;
   }
 
   const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
 
+  // SSML to control speech rate. The text is escaped to prevent issues.
+  const ssml = `
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'>
+        <voice name='${voiceName}'>
+            <prosody rate='-15.00%'>
+                ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+            </prosody>
+        </voice>
+    </speak>`;
+
   const audioData = await new Promise<ArrayBuffer>((resolve, reject) => {
-    synthesizer.speakTextAsync(
-      text,
+    synthesizer.speakSsmlAsync(
+      ssml,
       (result) => {
         synthesizer.close();
         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
