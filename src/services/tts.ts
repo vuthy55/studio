@@ -52,7 +52,7 @@ export async function generateSpeech(input: GenerateSpeechInput): Promise<Genera
     <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'>
         <voice name='${voiceName}'>
             <prosody rate='-15.00%'>
-                ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}
             </prosody>
         </voice>
     </speak>`;
