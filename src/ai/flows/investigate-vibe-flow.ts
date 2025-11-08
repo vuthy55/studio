@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to assist in moderating a Vibe conversation.
@@ -28,6 +29,7 @@ const investigateVibeFlow = ai.defineFlow(
     outputSchema: VibeInvestigationOutputSchema,
   },
   async ({ content, rules }) => {
+    const settings = await getAppSettingsAction();
     
     const { output } = await ai.generate({
       prompt: `
@@ -52,7 +54,7 @@ const investigateVibeFlow = ai.defineFlow(
         4.  Provide a final judgment and a brief, factual reasoning. Do not be overly sensitive; focus on clear-cut violations of the rules, especially regarding safety, harassment, hate speech, and illegal activities. It is okay to conclude that no violation occurred.
         5.  Your response MUST be in the requested JSON format.
       `,
-      model: 'googleai/gemini-2.5-flash',
+      model: `googleai/${settings.aiModelFlash}`,
       output: {
         schema: VibeInvestigationOutputSchema,
       },
@@ -67,5 +69,3 @@ export async function investigateVibe(input: VibeInvestigationInput): Promise<Vi
   // This wrapper simplifies the client-side call.
   return investigateVibeFlow(input);
 }
-
-    

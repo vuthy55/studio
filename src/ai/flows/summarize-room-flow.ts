@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to summarize a Sync Online meeting room.
@@ -156,19 +157,19 @@ export async function summarizeRoom(input: SummarizeRoomInput): Promise<RoomSumm
     return result;
 }
 
-const generateWithFallback = async (prompt: string, outputSchema: any) => {
+const generateWithFallback = async (prompt: string, outputSchema: any, flashModel: string, proModel: string) => {
     try {
         const { output } = await ai.generate({
           prompt: prompt,
-          model: 'googleai/gemini-2.5-flash',
+          model: `googleai/${flashModel}`,
           output: { schema: outputSchema },
         });
         return output!;
     } catch (error) {
-        console.warn("Primary summary model (gemini-2.5-flash) failed. Retrying with fallback.", error);
+        console.warn(`Primary summary model (${flashModel}) failed. Retrying with fallback.`, error);
         const { output } = await ai.generate({
           prompt: prompt,
-          model: 'googleai/gemini-2.5-pro',
+          model: `googleai/${proModel}`,
           output: { schema: outputSchema },
         });
         return output!;
@@ -251,13 +252,14 @@ const summarizeRoomFlow = ai.defineFlow(
       `;
     
     // 3. Call the AI model
+    const settings = await getAppSettingsAction();
     const output = await generateWithFallback(
       formattedPrompt,
-      AISummaryOutputSchema
+      AISummaryOutputSchema,
+      settings.aiModelFlash,
+      settings.aiModelPro
     );
     
     return output;
   }
 );
-
-    

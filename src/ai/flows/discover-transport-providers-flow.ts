@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to discover and structure transport provider data for a given country.
@@ -13,6 +14,7 @@
 import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { DiscoverTransportProvidersInputSchema, DiscoverTransportProvidersOutputSchema, type DiscoverTransportProvidersInput, type DiscoverTransportProvidersOutput } from './types';
+import { getAppSettingsAction } from '@/actions/settings';
 
 
 // --- Main Exported Function ---
@@ -36,6 +38,7 @@ const discoverTransportProvidersFlow = ai.defineFlow(
     outputSchema: DiscoverTransportProvidersOutputSchema,
   },
   async ({ countryName }) => {
+    const settings = await getAppSettingsAction();
     
     const { output } = await ai.generate({
       prompt: `
@@ -51,7 +54,7 @@ const discoverTransportProvidersFlow = ai.defineFlow(
             - Any well-known ferry services if inter-island travel is common.
             - Reputable online travel agencies (OTAs) that are popular for booking transport within that country (e.g., 12go.asia, easybook.com).
       `,
-      model: 'googleai/gemini-2.5-pro',
+      model: `googleai/${settings.aiModelPro}`,
       output: {
         schema: DiscoverTransportProvidersOutputSchema,
       },
@@ -60,5 +63,3 @@ const discoverTransportProvidersFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

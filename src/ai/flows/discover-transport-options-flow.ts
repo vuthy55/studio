@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to research transport options between two cities.
@@ -15,6 +16,7 @@ import { DiscoverTransportOptionsInputSchema, DiscoverTransportOptionsOutputSche
 import { getCountryTransportData } from '@/actions/transport-admin';
 import { lightweightCountries } from '@/lib/location-data';
 import { scrapeUrlAction } from '@/actions/scraper';
+import { getAppSettingsAction } from '@/actions/settings';
 
 // --- Main Exported Function ---
 
@@ -116,6 +118,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
     outputSchema: DiscoverTransportOptionsOutputSchema,
   },
   async ({ fromCity, toCity, searchResultsText }) => {
+    const settings = await getAppSettingsAction();
 
     const { output } = await ai.generate({
         prompt: `
@@ -138,7 +141,7 @@ const discoverTransportOptionsFlow = ai.defineFlow(
           2.  **QUALITY GATE**: If you cannot find a specific company name for a transport option, DISCARD that option entirely. Do not create an entry with "Company: Not Available".
           3.  Synthesize information. If one source mentions a price and another mentions the travel time for the same service, combine them into one complete entry.
         `,
-        model: 'googleai/gemini-2.5-pro',
+        model: `googleai/${settings.aiModelPro}`,
         output: {
             schema: z.array(TransportOptionSchema),
         }
@@ -147,5 +150,3 @@ const discoverTransportOptionsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

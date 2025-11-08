@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to determine the city for a given set of coordinates.
@@ -15,6 +16,7 @@ import {
     GetCityFromCoordsOutputSchema,
     type GetCityFromCoordsOutput
 } from './types';
+import { getAppSettingsAction } from '@/actions/settings';
 
 
 // --- Main Exported Function ---
@@ -38,6 +40,7 @@ const getCityFromCoordsFlow = ai.defineFlow(
     outputSchema: GetCityFromCoordsOutputSchema,
   },
   async ({ lat, lon }) => {
+    const settings = await getAppSettingsAction();
     
     const { output } = await ai.generate({
       prompt: `
@@ -48,7 +51,7 @@ const getCityFromCoordsFlow = ai.defineFlow(
         Latitude: ${lat}
         Longitude: ${lon}
       `,
-      model: 'googleai/gemini-2.5-flash',
+      model: `googleai/${settings.aiModelFlash}`,
       output: {
         schema: GetCityFromCoordsOutputSchema,
       },
@@ -57,5 +60,3 @@ const getCityFromCoordsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

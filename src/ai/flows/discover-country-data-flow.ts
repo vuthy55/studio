@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to discover and structure intelligence data for a given country.
@@ -16,6 +17,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { lightweightCountries } from '@/lib/location-data';
 import { DiscoverCountryDataInputSchema, DiscoverCountryDataOutputSchema, type DiscoverCountryDataInput, type DiscoverCountryDataOutput } from './types';
+import { getAppSettingsAction } from '@/actions/settings';
 
 
 // --- Main Exported Function ---
@@ -50,6 +52,7 @@ const discoverCountryDataFlow = ai.defineFlow(
     // Find the country code to help the AI be more specific
     const countryInfo = lightweightCountries.find(c => c.name.toLowerCase() === countryName.toLowerCase());
     const countryCode = countryInfo?.code || 'Unknown';
+    const settings = await getAppSettingsAction();
 
     const { output } = await ai.generate({
       prompt: `
@@ -66,7 +69,7 @@ const discoverCountryDataFlow = ai.defineFlow(
         8.  **publicHolidays**: A comprehensive list of at least 8-10 of the most significant national public holidays and major festivals for the entire year, **sorted chronologically by date**. Provide the date range and the name for each holiday.
         9.  **emergencyNumbers**: A detailed list containing the national numbers for Police, Ambulance, and Fire. If available, also include a dedicated Tourist Police number and any other relevant emergency contacts. The format for each entry should be "Service: Number", for example, "Police: 117".
       `,
-      model: 'googleai/gemini-2.5-pro',
+      model: `googleai/${settings.aiModelPro}`,
       output: {
         schema: DiscoverCountryDataOutputSchema,
       },
@@ -75,5 +78,3 @@ const discoverCountryDataFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    

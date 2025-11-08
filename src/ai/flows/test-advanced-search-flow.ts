@@ -1,4 +1,5 @@
 
+
 "use server";
 /**
  * @fileOverview A Genkit flow for testing a multi-step AI agent.
@@ -13,6 +14,7 @@ import { z } from 'zod';
 import { ai } from '@/ai/genkit';
 import { searchWebAction } from '@/actions/search';
 import { scrapeUrlAction } from '@/actions/scraper';
+import { getAppSettingsAction } from '@/actions/settings';
 
 interface TestResult {
     summary?: string;
@@ -35,26 +37,26 @@ export async function testAdvancedSearch(): Promise<TestResult> {
 }
 
 
-const generateWithFallback = async (prompt: string, debugLog: string[]) => {
+const generateWithFallback = async (prompt: string, debugLog: string[], flashModel: string, proModel: string) => {
     try {
-        debugLog.push('[INFO] Attempting summarization with gemini-2.5-flash...');
+        debugLog.push(`[INFO] Attempting summarization with ${flashModel}...`);
         const result = await ai.generate({
           prompt: prompt,
-          model: 'googleai/gemini-2.5-flash',
+          model: `googleai/${flashModel}`,
         });
         
         const outputText = result.text;
 
         if (!outputText) {
-            debugLog.push("[WARN] gemini-2.5-flash returned null. Trying fallback with gemini-2.5-pro...");
+            debugLog.push(`[WARN] ${flashModel} returned null. Trying fallback with ${proModel}...`);
              const fallbackResult = await ai.generate({
               prompt: prompt,
-              model: 'googleai/gemini-2.5-pro',
+              model: `googleai/${proModel}`,
             });
 
             const fallbackOutputText = fallbackResult.text;
              if (!fallbackOutputText) {
-                 debugLog.push("[FAIL] The fallback AI model (gemini-2.5-pro) also returned a null or empty response.");
+                 debugLog.push(`[FAIL] The fallback AI model (${proModel}) also returned a null or empty response.`);
                  throw new Error("The AI model returned a null or empty response.");
             }
             debugLog.push("[SUCCESS] Fallback model succeeded.");
@@ -125,8 +127,7 @@ const testSearchFlow = ai.defineFlow(
         Based ONLY on the information provided, provide a concise, one-paragraph summary of the travel advisory.
     `;
     
-    return await generateWithFallback(finalPrompt, debugLog);
+    const settings = await getAppSettingsAction();
+    return await generateWithFallback(finalPrompt, debugLog, settings.aiModelFlash, settings.aiModelPro);
   }
 );
-
-    

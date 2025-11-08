@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to calculate the carbon footprint of a journey.
@@ -163,7 +164,7 @@ const calculateEcoFootprintFlow = ai.defineFlow(
       ${JSON.stringify(allLocalOpportunities, null, 2)}
       ---
       `,
-      model: 'googleai/gemini-2.5-pro',
+      model: `googleai/${appSettings.aiModelPro}`,
       tools: [getFlightCarbonData, getGroundTransportCarbonData],
       context: {
         calculationSources
@@ -182,5 +183,3 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     return output;
   }
 );
-
-    

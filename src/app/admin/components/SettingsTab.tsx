@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon, Leaf } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon, Leaf, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -129,6 +129,15 @@ export default function SettingsTab() {
                         {renderNumberInput('roomReminderMinutes', 'Room Reminder (minutes)', 'Remind users N minutes before a room\'s booked time ends.')}
                         {renderNumberInput('vibeInactivityDays', 'Vibe Inactivity Days', 'Days a Vibe can be inactive before being moved to the bottom of the list.')}
                     </div>
+                 </div>
+                 
+                 <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><Bot className="text-primary"/> AI Model Configuration</h3>
+                    <Separator />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        {renderTextInput('aiModelFlash', 'Standard AI Model', 'The primary, cost-effective AI model for standard tasks (e.g., gemini-2.5-flash).')}
+                        {renderTextInput('aiModelPro', 'Advanced AI Model', 'The advanced AI model for complex, reasoning-heavy tasks (e.g., gemini-2.5-pro).')}
+                     </div>
                  </div>
                  
                  <div>

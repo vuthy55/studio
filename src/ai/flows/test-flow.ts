@@ -1,8 +1,10 @@
 
+
 'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { getAppSettingsAction } from '@/actions/settings';
 
 
 const testFlow = ai.defineFlow(
@@ -12,9 +14,10 @@ const testFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (name) => {
+    const settings = await getAppSettingsAction();
     const {output} = await ai.generate({
       prompt: `You are a helpful AI assistant. Say hello to ${name}.`,
-      model: 'googleai/gemini-2.5-flash',
+      model: `googleai/${settings.aiModelFlash}`,
     });
     return output!;
   }
@@ -23,5 +26,3 @@ const testFlow = ai.defineFlow(
 export async function runTestFlow(name: string): Promise<string> {
   return testFlow(name);
 }
-
-    

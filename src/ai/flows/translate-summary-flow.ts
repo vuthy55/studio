@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to translate a meeting summary.
@@ -52,18 +53,18 @@ export type TranslateSummaryOutput = RoomSummary;
 
 
 // --- Helper Function ---
-const generateWithFallback = async (prompt: string, schema: z.ZodType) => {
+const generateWithFallback = async (prompt: string, schema: z.ZodType, flashModel: string, proModel: string) => {
     try {
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.5-flash',
+            model: `googleai/${flashModel}`,
             output: { schema },
         });
     } catch (error) {
-        console.warn("Primary translation model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+        console.warn(`Primary translation model (${flashModel}) failed. Retrying with fallback.`, error);
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.5-pro',
+            model: `googleai/${proModel}`,
             output: { schema },
         });
     }
@@ -81,6 +82,7 @@ const translateSummaryFlow = ai.defineFlow(
   async ({ summary, targetLanguages }) => {
 
     const translationPromises = [];
+    const settings = await getAppSettingsAction();
     
     // Dynamically build the Zod schema based on the target languages
     const translationSchema = z.object(
@@ -94,14 +96,14 @@ const translateSummaryFlow = ai.defineFlow(
 
     // Translate the main summary
     translationPromises.push(
-      generateWithFallback(`Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`, translationSchema)
+      generateWithFallback(`Translate the following text into these languages: ${targetLanguages.join(', ')}.\n\nText: ${summary.summary.original}`, translationSchema, settings.aiModelFlash, settings.aiModelPro)
         .then(res => ({ index: -1, translations: res.output! }))
     );
 
     // Translate each action item
     summary.actionItems.forEach((item, index) => {
       translationPromises.push(
-        generateWithFallback(`Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`, translationSchema)
+        generateWithFallback(`Translate the following task into these languages: ${targetLanguages.join(', ')}.\n\nTask: ${item.task.original}`, translationSchema, settings.aiModelFlash, settings.aiModelPro)
           .then(res => ({ index, translations: res.output! }))
       );
     });

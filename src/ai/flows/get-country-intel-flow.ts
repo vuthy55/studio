@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to get travel intel for a given country.
@@ -169,20 +170,20 @@ const buildSiteSearchQuery = (sites: string[] | undefined): string => {
     return sites.filter(s => s.trim()).map(s => `site:${s.trim()}`).join(' OR ');
 };
 
-const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[]) => {
+const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[], flashModel: string, proModel: string) => {
     try {
-        debugLog.push('[Intel Flow] Generating with primary model (gemini-2.5-flash)...');
+        debugLog.push(`[Intel Flow] Generating with primary model (${flashModel})...`);
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-2.5-flash',
+            model: `googleai/${flashModel}`,
             output: { schema: outputSchema },
             context,
         });
     } catch (error) {
-        debugLog.push(`[Intel Flow] Primary model failed: ${error}. Retrying with fallback (gemini-2.5-pro)...`);
+        debugLog.push(`[Intel Flow] Primary model failed: ${error}. Retrying with fallback (${proModel})...`);
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-2.5-pro',
+            model: `googleai/${proModel}`,
             output: { schema: outputSchema },
             context,
         });
@@ -309,7 +310,9 @@ const getCountryIntelFlow = ai.defineFlow(
         `,
       { categories: allSourcesByCategory },
       OverallAssessmentSchema,
-      debugLog
+      debugLog,
+      settings.aiModelFlash,
+      settings.aiModelPro,
     );
     
     const aiOutput = output!;
@@ -344,7 +347,3 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
-
-    
-
-    
