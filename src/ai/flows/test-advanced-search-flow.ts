@@ -37,24 +37,24 @@ export async function testAdvancedSearch(): Promise<TestResult> {
 
 const generateWithFallback = async (prompt: string, debugLog: string[]) => {
     try {
-        debugLog.push('[INFO] Attempting summarization with gemini-1.5-flash...');
+        debugLog.push('[INFO] Attempting summarization with gemini-2.5-flash...');
         const result = await ai.generate({
           prompt: prompt,
-          model: 'googleai/gemini-1.5-flash',
+          model: 'googleai/gemini-2.5-flash',
         });
         
         const outputText = result.text;
 
         if (!outputText) {
-            debugLog.push("[WARN] gemini-1.5-flash returned null. Trying fallback with gemini-1.5-pro...");
+            debugLog.push("[WARN] gemini-2.5-flash returned null. Trying fallback with gemini-2.5-pro...");
              const fallbackResult = await ai.generate({
               prompt: prompt,
-              model: 'googleai/gemini-1.5-pro',
+              model: 'googleai/gemini-2.5-pro',
             });
 
             const fallbackOutputText = fallbackResult.text;
              if (!fallbackOutputText) {
-                 debugLog.push("[FAIL] The fallback AI model (gemini-1.5-pro) also returned a null or empty response.");
+                 debugLog.push("[FAIL] The fallback AI model (gemini-2.5-pro) also returned a null or empty response.");
                  throw new Error("The AI model returned a null or empty response.");
             }
             debugLog.push("[SUCCESS] Fallback model succeeded.");
@@ -128,3 +128,5 @@ const testSearchFlow = ai.defineFlow(
     return await generateWithFallback(finalPrompt, debugLog);
   }
 );
+
+    

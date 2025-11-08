@@ -28,7 +28,7 @@ const detectLanguageFlow = ai.defineFlow(
     
     const { output } = await ai.generate({
       prompt: `What language is the following text written in? Respond with only the English name of the language (e.g., "Thai", "Spanish", "English").\n\nText: "${text}"`,
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-2.5-flash',
       output: {
         schema: DetectLanguageOutputSchema,
       },
@@ -41,3 +41,5 @@ const detectLanguageFlow = ai.defineFlow(
 export async function detectLanguage(input: DetectLanguageInput): Promise<DetectLanguageOutput> {
   return detectLanguageFlow(input);
 }
+
+    

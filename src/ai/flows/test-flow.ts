@@ -14,7 +14,7 @@ const testFlow = ai.defineFlow(
   async (name) => {
     const {output} = await ai.generate({
       prompt: `You are a helpful AI assistant. Say hello to ${name}.`,
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-2.5-flash',
     });
     return output!;
   }
@@ -23,3 +23,5 @@ const testFlow = ai.defineFlow(
 export async function runTestFlow(name: string): Promise<string> {
   return testFlow(name);
 }
+
+    

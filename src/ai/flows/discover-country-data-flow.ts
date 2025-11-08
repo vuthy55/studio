@@ -66,7 +66,7 @@ const discoverCountryDataFlow = ai.defineFlow(
         8.  **publicHolidays**: A comprehensive list of at least 8-10 of the most significant national public holidays and major festivals for the entire year, **sorted chronologically by date**. Provide the date range and the name for each holiday.
         9.  **emergencyNumbers**: A detailed list containing the national numbers for Police, Ambulance, and Fire. If available, also include a dedicated Tourist Police number and any other relevant emergency contacts. The format for each entry should be "Service: Number", for example, "Police: 117".
       `,
-      model: 'googleai/gemini-1.5-pro',
+      model: 'googleai/gemini-2.5-pro',
       output: {
         schema: DiscoverCountryDataOutputSchema,
       },
@@ -75,3 +75,5 @@ const discoverCountryDataFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

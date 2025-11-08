@@ -171,18 +171,18 @@ const buildSiteSearchQuery = (sites: string[] | undefined): string => {
 
 const generateWithFallback = async (prompt: string, context: any, outputSchema: any, debugLog: string[]) => {
     try {
-        debugLog.push('[Intel Flow] Generating with primary model (gemini-1.5-flash)...');
+        debugLog.push('[Intel Flow] Generating with primary model (gemini-2.5-flash)...');
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.5-flash',
+            model: 'googleai/gemini-2.5-flash',
             output: { schema: outputSchema },
             context,
         });
     } catch (error) {
-        debugLog.push(`[Intel Flow] Primary model failed: ${error}. Retrying with fallback (gemini-1.5-pro)...`);
+        debugLog.push(`[Intel Flow] Primary model failed: ${error}. Retrying with fallback (gemini-2.5-pro)...`);
         return await ai.generate({
             prompt,
-            model: 'googleai/gemini-1.5-pro',
+            model: 'googleai/gemini-2.5-pro',
             output: { schema: outputSchema },
             context,
         });
@@ -344,5 +344,7 @@ const getCountryIntelFlow = ai.defineFlow(
     };
   }
 );
+
+    
 
     
