@@ -48,7 +48,7 @@ const getCityFromCoordsFlow = ai.defineFlow(
         Latitude: ${lat}
         Longitude: ${lon}
       `,
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-2.5-flash',
       output: {
         schema: GetCityFromCoordsOutputSchema,
       },
@@ -57,3 +57,5 @@ const getCityFromCoordsFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

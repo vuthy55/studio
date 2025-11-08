@@ -163,7 +163,7 @@ const calculateEcoFootprintFlow = ai.defineFlow(
       ${JSON.stringify(allLocalOpportunities, null, 2)}
       ---
       `,
-      model: 'googleai/gemini-1.5-pro',
+      model: 'googleai/gemini-2.5-pro',
       tools: [getFlightCarbonData, getGroundTransportCarbonData],
       context: {
         calculationSources
@@ -182,3 +182,5 @@ const calculateEcoFootprintFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

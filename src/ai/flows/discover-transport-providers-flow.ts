@@ -51,7 +51,7 @@ const discoverTransportProvidersFlow = ai.defineFlow(
             - Any well-known ferry services if inter-island travel is common.
             - Reputable online travel agencies (OTAs) that are popular for booking transport within that country (e.g., 12go.asia, easybook.com).
       `,
-      model: 'googleai/gemini-1.5-pro',
+      model: 'googleai/gemini-2.5-pro',
       output: {
         schema: DiscoverTransportProvidersOutputSchema,
       },
@@ -60,3 +60,5 @@ const discoverTransportProvidersFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    

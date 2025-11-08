@@ -101,7 +101,7 @@ const discoverEcoIntelFlow = ai.defineFlow(
         - **Activity Type is Mandatory for Offsetting**: For every entry in \`offsettingOpportunities\`, you MUST include an \`activityType\` string. Infer the most likely type from the organization's name or description (e.g., 'tree_planting', 'renewable_energy', 'conservation', 'community_development').
         - **Booking URLs are Optional for Eco-Tourism**: For eco-tourism opportunities, a booking URL is helpful but not required. **If a booking URL is not found in the text, you MUST OMIT the \`bookingUrl\` field entirely for that entry. Do NOT discard the opportunity.**
       `,
-      model: 'googleai/gemini-1.5-pro',
+      model: 'googleai/gemini-2.5-pro',
       tools: [search_web, scrape_url],
       output: {
         schema: DiscoverEcoIntelOutputSchema,
@@ -124,3 +124,5 @@ const discoverEcoIntelFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

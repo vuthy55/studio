@@ -160,15 +160,15 @@ const generateWithFallback = async (prompt: string, outputSchema: any) => {
     try {
         const { output } = await ai.generate({
           prompt: prompt,
-          model: 'googleai/gemini-1.5-flash',
+          model: 'googleai/gemini-2.5-flash',
           output: { schema: outputSchema },
         });
         return output!;
     } catch (error) {
-        console.warn("Primary summary model (gemini-1.5-flash) failed. Retrying with fallback.", error);
+        console.warn("Primary summary model (gemini-2.5-flash) failed. Retrying with fallback.", error);
         const { output } = await ai.generate({
           prompt: prompt,
-          model: 'googleai/gemini-1.5-pro',
+          model: 'googleai/gemini-2.5-pro',
           output: { schema: outputSchema },
         });
         return output!;
@@ -259,3 +259,5 @@ const summarizeRoomFlow = ai.defineFlow(
     return output;
   }
 );
+
+    
