@@ -135,8 +135,8 @@ export default function SettingsTab() {
                     <h3 className="text-lg font-semibold flex items-center gap-2 mt-8 mb-4"><Bot className="text-primary"/> AI Model Configuration</h3>
                     <Separator />
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                        {renderTextInput('aiModelFlash', 'Standard AI Model', 'The primary, cost-effective AI model for standard tasks (e.g., gemini-2.5-flash).')}
-                        {renderTextInput('aiModelPro', 'Advanced AI Model', 'The advanced AI model for complex, reasoning-heavy tasks (e.g., gemini-2.5-pro).')}
+                        {renderTextInput('aiModelFlash', 'Standard AI Model', 'Used for: Room Summarization, Translation, Language Detection, Vibe Moderation.')}
+                        {renderTextInput('aiModelPro', 'Advanced AI Model', 'Used for: InfoHub Agent, Transport Discovery, Eco-Footprint Calculations, and as a fallback.')}
                      </div>
                  </div>
                  
