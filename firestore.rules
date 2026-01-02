@@ -191,6 +191,25 @@ service cloud.firestore {
         allow write: if isVibeHost();
       }
     }
+
+    // --- RULES FOR CONVERSATION RECORDINGS ---
+    match /recordedConversations/{conversationId} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == resource.data.userId;
+      }
+
+      // Allow a user to read and create their own recordings.
+      allow read, create: if isOwner();
+      // Allow a user to delete their own recording. Subcollection deletion is handled by server-side logic.
+      allow delete: if isOwner();
+
+      // Transcript turns can be created by the server-side action and read by the owner.
+      match /transcript/{turnId} {
+        allow read: if isOwner();
+        allow create: if request.auth != null; // Server action has elevated privileges
+        allow write, delete: if false; // Immutable once created
+      }
+    }
     
     // PayPal temporary orders: Only allow creation from server-side action
     match /paypalOrders/{orderId} {
