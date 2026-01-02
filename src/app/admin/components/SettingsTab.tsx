@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon, Leaf, Bot } from "lucide-react";
+import { LoaderCircle, Save, Award, DollarSign, Timer, MessageSquareHeart, Image as ImageIcon, Leaf, Bot, Radio } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAppSettingsAction, updateAppSettingsAction, type AppSettings } from '@/actions/settings';
 import { Separator } from '@/components/ui/separator';
@@ -118,6 +118,7 @@ export default function SettingsTab() {
                         {renderNumberInput('summaryTranslationCost', 'Summary Translation Cost', 'Token cost per language to translate a meeting summary.')}
                         {renderNumberInput('transcriptCost', 'Transcript Generation Cost', 'Token cost to generate and download a meeting transcript.')}
                         {renderNumberInput('ecoFootprintCost', 'Eco-Footprint Calculation Cost', 'Token cost for one AI-powered carbon footprint calculation.')}
+                        {renderNumberInput('recordingFee', 'Session Recording Fee', 'One-time token cost to start a recorded session in Converse.')}
                     </div>
 
                     <div className="space-y-6">

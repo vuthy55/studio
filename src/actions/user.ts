@@ -1,9 +1,11 @@
 
+
 'use server';
 
 import { db, auth } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { LanguageCode } from '@/lib/data';
+import type { RecordedConversation, TranscriptTurn } from '@/lib/types';
 
 /**
  * Recursively deletes a collection in Firestore.
@@ -125,4 +127,23 @@ export async function unlockLanguagePackAction(userId: string, lang: LanguageCod
         console.error(`Error unlocking language pack for user ${userId}:`, error);
         return { success: false, error: error.message || 'A server error occurred during the transaction.' };
     }
+}
+
+export async function createRecordedConversationAction(userId: string, title: string, languages: string[]): Promise<string> {
+    const newDocRef = db.collection('recordedConversations').doc();
+    await newDocRef.set({
+        userId,
+        title,
+        languages,
+        createdAt: FieldValue.serverTimestamp(),
+    });
+    return newDocRef.id;
+}
+
+export async function addTranscriptTurnAction(conversationId: string, turn: Omit<TranscriptTurn, 'createdAt'>): Promise<void> {
+    const transcriptRef = db.collection('recordedConversations').doc(conversationId).collection('transcript').doc();
+    await transcriptRef.set({
+        ...turn,
+        createdAt: FieldValue.serverTimestamp(),
+    });
 }

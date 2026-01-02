@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -6,7 +7,7 @@ import { simpleLanguages } from '@/lib/simple-languages';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, LoaderCircle, X, Languages, Users, Volume2, Coins, Clock, HelpCircle } from 'lucide-react';
+import { Mic, LoaderCircle, X, Languages, Users, Volume2, Coins, Clock, HelpCircle, Radio, Dot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -21,9 +22,16 @@ import { useTour, TourStep } from '@/context/TourContext';
 import MainHeader from '@/components/layout/MainHeader';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
+import { createRecordedConversationAction, addTranscriptTurnAction } from '@/actions/user';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { RecordedConversation } from '@/lib/types';
+import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
+type RecordingStatus = 'stopped' | 'confirming' | 'recording';
 
 const syncLiveTourSteps: TourStep[] = [
   {
@@ -50,6 +58,11 @@ export default function ConversePage() {
   const [isClient, setIsClient] = useState(false);
   
   const [status, setStatus] = useState<ConversationStatus>('idle');
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('stopped');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [myRecordings, setMyRecordings] = useState<RecordedConversation[]>([]);
+
+
   const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState(0);
   const [sessionTokensUsed, setSessionTokensUsed] = useState(0);
@@ -83,6 +96,27 @@ export default function ConversePage() {
       }
     };
   }, []); 
+
+  // Fetch user's recorded conversations
+    useEffect(() => {
+        if (!user) {
+            setMyRecordings([]);
+            return;
+        }
+
+        const recordingsRef = collection(db, 'recordedConversations');
+        const q = query(recordingsRef, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const userRecordings = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as RecordedConversation));
+            setMyRecordings(userRecordings);
+        });
+
+        return () => unsubscribe();
+    }, [user]);
 
 
   const startConversationTurn = async () => {
@@ -145,6 +179,17 @@ export default function ConversePage() {
             });
             const translatedText = translationResult.translatedText;
             log(`[SUCCESS] Translation successful. Result: "${translatedText}"`);
+
+             if (activeConversationId) {
+                await addTranscriptTurnAction(activeConversationId, {
+                    originalText,
+                    translatedText,
+                    speaker: fromLangLabel, // Or determine based on who is speaking
+                    fromLanguage: fromLangLabel,
+                    toLanguage: toLangLabel,
+                });
+                log(`[RECORDING] Saved transcript turn to conversation ${activeConversationId}`);
+            }
             
             const { audioDataUri } = await generateSpeech({ text: translatedText, lang: targetLangLocale });
             log(`[SUCCESS] Generated speech audio data URI.`);
@@ -219,6 +264,32 @@ export default function ConversePage() {
       toast({ variant: 'destructive', title: 'Minimum Required', description: 'You need at least 2 languages for a conversation.' });
     }
   };
+
+    const handleStartRecording = async () => {
+        if (!user || !settings) return;
+
+        const fee = settings.recordingFee || 50;
+        if ((userProfile?.tokenBalance || 0) < fee) {
+            toast({ variant: 'destructive', title: 'Insufficient Tokens', description: `You need ${fee} tokens to start a recording.` });
+            return;
+        }
+
+        try {
+            const newConversationId = await createRecordedConversationAction(user.uid, `New Recording - ${new Date().toLocaleString()}`, selectedLanguages.map(l => simpleLanguages.find(sl => sl.value === l)?.label || l));
+            setActiveConversationId(newConversationId);
+            setRecordingStatus('recording');
+            toast({ title: 'Recording Started', description: 'Your conversation is now being recorded.' });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Recording Error', description: 'Could not start the recording session.' });
+        }
+    };
+
+    const handleStopRecording = () => {
+        setRecordingStatus('stopped');
+        setActiveConversationId(null);
+        toast({ title: 'Recording Stopped', description: 'Your session has been saved.' });
+    };
+
   
   const allLanguageOptions = useMemo(() => {
     return simpleLanguages.filter(l => !selectedLanguages.includes(l.value as AzureLanguageCode));
@@ -299,24 +370,34 @@ export default function ConversePage() {
                     </div>
                 </div>
 
-                <Button
-                    size="lg"
-                    className={cn(
-                        "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
-                        status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
-                        status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
-                        (status === 'idle') && 'bg-primary hover:bg-primary/90',
-                        status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
-                    )}
-                    onClick={startConversationTurn}
-                    disabled={status !== 'idle'}
-                    data-tour="sl-mic-button"
-                >
-                    {status === 'idle' && <Mic className="h-16 w-16"/>}
-                    {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
-                    {status === 'speaking' && <Volume2 className="h-20 w-20" />}
-                    {status === 'disabled' && <X className="h-16 w-16"/>}
-                </Button>
+                <div className="flex flex-col items-center gap-4">
+                     <Button
+                        size="lg"
+                        className={cn(
+                            "rounded-full w-40 h-40 text-lg transition-all duration-300 ease-in-out",
+                            status === 'listening' && 'bg-green-500 hover:bg-green-600 animate-pulse',
+                            status === 'speaking' && 'bg-blue-500 hover:bg-blue-600',
+                            (status === 'idle') && 'bg-primary hover:bg-primary/90',
+                            status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
+                        )}
+                        onClick={startConversationTurn}
+                        disabled={status !== 'idle' || recordingStatus === 'confirming'}
+                        data-tour="sl-mic-button"
+                    >
+                        {status === 'idle' && <Mic className="h-16 w-16"/>}
+                        {status === 'listening' && <LoaderCircle className="h-20 w-20 animate-spin" />}
+                        {status === 'speaking' && <Volume2 className="h-20 w-20" />}
+                        {status === 'disabled' && <X className="h-16 w-16"/>}
+                    </Button>
+                    <div className="text-center h-5">
+                        {recordingStatus === 'recording' && (
+                            <div className="flex items-center gap-2 text-destructive font-semibold animate-pulse">
+                                <Dot /> REC
+                            </div>
+                        )}
+                    </div>
+                </div>
+
 
                 <div className="text-center h-16 w-full p-2 bg-secondary/50 rounded-lg flex flex-col justify-center" data-tour="sl-status-display">
                     {status === 'idle' && <p className="font-semibold text-muted-foreground text-sm">Tap the mic to start speaking</p>}

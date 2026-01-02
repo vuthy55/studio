@@ -25,6 +25,7 @@ const AppSettingsSchema = z.object({
   infohubAiCost: z.number().default(10),
   transportIntelligenceCost: z.number().default(10),
   ecoFootprintCost: z.number().default(10),
+  recordingFee: z.number().default(50),
   ecoFootprintCalculationSources: z.string().default('icao.int, ecolib.org, carbonfootprint.com'),
   infohubGovernmentAdvisorySources: z.string().default('travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au'),
   infohubGlobalNewsSources: z.string().default('www.reuters.com, apnews.com, www.bbc.com/news'),
@@ -34,8 +35,8 @@ const AppSettingsSchema = z.object({
   storyPageImage2: z.string().url().optional().default('https://images.unsplash.com/photo-1574068468668-a05a11f871da?q=80&w=1974&auto=format&fit=crop').describe('Image 2 (Ordering Food). Recommended 3:2 aspect ratio (e.g., 600x400).'),
   storyPageImage3: z.string().url().optional().default('https://images.unsplash.com/photo-1542037104-91ad67d9692a?q=80&w=1974&auto=format&fit=crop').describe('Image 3 (Diverse Friends). Recommended 3:2 aspect ratio (e.g., 600x400).'),
   storyPageImage4: z.string().url().optional().default('https://images.unsplash.com/photo-1516589178581-6e3a4f11413a?q=80&w=2070&auto=format&fit=crop').describe('Image 4 (Friends with Phone). Recommended 3:2 aspect ratio (e.g., 600x400).'),
-  aiModelFlash: z.string().default('gemini-2.5-flash').describe('The primary, cost-effective AI model for standard tasks.'),
-  aiModelPro: z.string().default('gemini-2.5-pro').describe('The advanced AI model for complex, reasoning-heavy tasks.'),
+  aiModelFlash: z.string().default('gemini-2.5-flash').describe('Used for: Room Summarization, Translation, Language Detection, Vibe Moderation.'),
+  aiModelPro: z.string().default('gemini-2.5-pro').describe('Used for: InfoHub Agent, Transport Discovery, Eco-Footprint Calculations, and as a fallback.'),
 });
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
@@ -66,6 +67,7 @@ export async function getAppSettingsAction(): Promise<AppSettings> {
     infohubAiCost: 10,
     transportIntelligenceCost: 10,
     ecoFootprintCost: 10,
+    recordingFee: 50,
     ecoFootprintCalculationSources: 'icao.int, ecolib.org, carbonfootprint.com',
     infohubGovernmentAdvisorySources: 'travel.state.gov, www.gov.uk/foreign-travel-advice, www.smartraveller.gov.au',
     infohubGlobalNewsSources: 'www.reuters.com, apnews.com, www.bbc.com/news',
