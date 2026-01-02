@@ -195,19 +195,26 @@ service cloud.firestore {
     // --- RULES FOR CONVERSATION RECORDINGS ---
     match /recordedConversations/{conversationId} {
       function isOwner() {
-        return request.auth != null && request.auth.uid == resource.data.userId;
+        // request.resource is null for read operations, so check both.
+        // For reads, we check the existing data in the database (resource.data).
+        // For writes, we check the incoming data being written (request.resource.data).
+        return request.auth != null && 
+               (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
       }
 
       // Allow a user to read and create their own recordings.
       allow read, create: if isOwner();
-      // Allow a user to delete their own recording. Subcollection deletion is handled by server-side logic.
-      allow delete: if isOwner();
+      // Allow a user to delete their own recording.
+      allow delete: if resource.data.userId == request.auth.uid;
 
       // Transcript turns can be created by the server-side action and read by the owner.
       match /transcript/{turnId} {
-        allow read: if isOwner();
-        allow create: if request.auth != null; // Server action has elevated privileges
-        allow write, delete: if false; // Immutable once created
+        // isOwner() can't be used here as it references the parent document's `userId` field.
+        // So we must re-evaluate ownership based on the parent `recordedConversations` document.
+        allow read: if get(/databases/$(database)/documents/recordedConversations/$(conversationId)).data.userId == request.auth.uid;
+        // The server action that adds transcript turns has elevated privileges and is not bound by this rule.
+        // This rule effectively blocks clients from creating/writing/deleting turns.
+        allow write, delete: if false;
       }
     }
     
