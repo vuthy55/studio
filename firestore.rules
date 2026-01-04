@@ -191,31 +191,31 @@ service cloud.firestore {
         allow write: if isVibeHost();
       }
     }
-
+    
     // --- RULES FOR CONVERSATION RECORDINGS ---
     match /recordedConversations/{conversationId} {
-      function isOwner() {
-        // request.resource is null for read operations, so check both.
-        // For reads, we check the existing data in the database (resource.data).
-        // For writes, we check the incoming data being written (request.resource.data).
-        return request.auth != null && 
-               (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
-      }
+        function isOwner() {
+            // request.resource is null for read operations, so check both resource and request.resource
+            return request.auth != null && 
+                   (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
+        }
 
-      // Allow a user to read and create their own recordings.
-      allow read, create: if isOwner();
-      // Allow a user to delete their own recording.
-      allow delete: if resource.data.userId == request.auth.uid;
+        // Allow a user to create, read and delete their own recordings.
+        allow read, create: if isOwner();
+        allow delete: if resource.data.userId == request.auth.uid;
 
-      // Transcript turns can be created by the server-side action and read by the owner.
-      match /transcript/{turnId} {
-        // isOwner() can't be used here as it references the parent document's `userId` field.
-        // So we must re-evaluate ownership based on the parent `recordedConversations` document.
-        allow read: if get(/databases/$(database)/documents/recordedConversations/$(conversationId)).data.userId == request.auth.uid;
-        // The server action that adds transcript turns has elevated privileges and is not bound by this rule.
-        // This rule effectively blocks clients from creating/writing/deleting turns.
-        allow write, delete: if false;
-      }
+        // Transcript turns can be created by the server-side action and read by the owner.
+        match /transcript/{turnId} {
+            // Re-evaluate ownership based on the parent 'recordedConversations' document.
+            allow read: if get(/databases/$(database)/documents/recordedConversations/$(conversationId)).data.userId == request.auth.uid;
+            allow write, delete: if false; // Only server can write/delete.
+        }
+    }
+    
+    // --- COLLECTION GROUP QUERIES ---
+    match /{path=**}/recordedConversations/{conversationId} {
+        // Allow user to list their own recordings across all collections.
+        allow list, read: if request.auth.uid == resource.data.userId;
     }
     
     // PayPal temporary orders: Only allow creation from server-side action
