@@ -22,7 +22,7 @@ import MainHeader from '@/components/layout/MainHeader';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
 import { createRecordedConversationAction, addTranscriptTurnAction } from '@/actions/user';
-import { collectionGroup, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collectionGroup, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { RecordedConversation } from '@/lib/types';
 import { format } from 'date-fns';
@@ -97,35 +97,36 @@ export default function ConversePage() {
   }, []); 
 
   // Fetch user's recorded conversations
-    useEffect(() => {
-        if (!user) {
-            setMyRecordings([]);
-            return;
+  useEffect(() => {
+    if (!user) {
+        setMyRecordings([]);
+        return;
+    }
+
+    const recordingsQuery = query(collectionGroup(db, 'recordedConversations'));
+
+    const unsubscribe = onSnapshot(recordingsQuery, (snapshot) => {
+        const allRecordings = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as RecordedConversation));
+        
+        const userRecordings = allRecordings
+            .filter(rec => rec.userId === user.uid)
+            .sort((a, b) => (b.createdAt as Timestamp).toMillis() - (a.createdAt as Timestamp).toMillis());
+
+        setMyRecordings(userRecordings);
+
+    }, (error) => {
+        console.error("Error fetching recorded conversations:", error);
+        if (error.code === 'permission-denied') {
+          // This should no longer happen with a simple collectionGroup query if the rules are right, but good to keep.
+          toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch recordings due to security rules.'});
         }
+    });
 
-        // This query is causing the error because the required composite index does not exist.
-        // I am commenting it out to prevent the app from crashing.
-        /*
-        const recordingsQuery = query(
-            collectionGroup(db, 'recordedConversations'),
-            where('userId', '==', user.uid),
-            orderBy('createdAt', 'desc')
-        );
-
-        const unsubscribe = onSnapshot(recordingsQuery, (snapshot) => {
-            const userRecordings = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as RecordedConversation));
-            setMyRecordings(userRecordings);
-        }, (error) => {
-            console.error("Error fetching recorded conversations:", error);
-            // This is where the permission error would have been thrown.
-        });
-
-        return () => unsubscribe();
-        */
-    }, [user]);
+    return () => unsubscribe();
+}, [user, toast]);
 
 
   const startConversationTurn = async () => {
