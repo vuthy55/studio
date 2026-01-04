@@ -52,6 +52,26 @@ service cloud.firestore {
         allow list, read: if isOwner() || isAdmin();
         allow write: if isOwner();
       }
+      
+      // --- RULES FOR CONVERSATION RECORDINGS ---
+      match /recordedConversations/{conversationId} {
+          function isOwner() {
+              // request.resource is null for read operations, so check both resource and request.resource
+              return request.auth != null && 
+                    (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
+          }
+
+          // Allow a user to create, read and delete their own recordings.
+          allow read, create: if isOwner();
+          allow delete: if resource.data.userId == request.auth.uid;
+
+          // Transcript turns can be created by the server-side action and read by the owner.
+          match /transcript/{turnId} {
+              // Re-evaluate ownership based on the parent 'recordedConversations' document.
+              allow read: if get(/databases/$(database)/documents/users/$(userId)/recordedConversations/$(conversationId)).data.userId == request.auth.uid;
+              allow write, delete: if false; // Only server can write/delete.
+          }
+      }
     }
     
     // --- RULES FOR ADMIN DASHBOARD ---
@@ -190,26 +210,6 @@ service cloud.firestore {
         // Allow write access only to hosts
         allow write: if isVibeHost();
       }
-    }
-    
-    // --- RULES FOR CONVERSATION RECORDINGS ---
-    match /recordedConversations/{conversationId} {
-        function isOwner() {
-            // request.resource is null for read operations, so check both resource and request.resource
-            return request.auth != null && 
-                   (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid);
-        }
-
-        // Allow a user to create, read and delete their own recordings.
-        allow read, create: if isOwner();
-        allow delete: if resource.data.userId == request.auth.uid;
-
-        // Transcript turns can be created by the server-side action and read by the owner.
-        match /transcript/{turnId} {
-            // Re-evaluate ownership based on the parent 'recordedConversations' document.
-            allow read: if get(/databases/$(database)/documents/recordedConversations/$(conversationId)).data.userId == request.auth.uid;
-            allow write, delete: if false; // Only server can write/delete.
-        }
     }
     
     // --- COLLECTION GROUP QUERIES ---
