@@ -98,21 +98,26 @@ export default function ConversePage() {
 
   const startConversationTurn = async () => {
     log('--- Turn Started ---');
-    if (!user || !settings) {
-        log('[FAIL] Pre-check failed: User or settings not available.');
+    if (!user || !settings || !userProfile) {
+        log('[FAIL] Pre-check failed: User, settings or profile not available.');
         toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to use this feature.' });
         return;
     }
     
-    // Corrected Logic: Check for access right before starting.
+    // Check for access right before starting.
     const hasFreeMinutes = (syncLiveUsage || 0) + sessionUsageRef.current < freeMinutesMs;
-    const hasTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
+    const hasTokens = (userProfile.tokenBalance || 0) >= costPerMinute;
 
     if (!hasFreeMinutes && !hasTokens) {
         log('[FAIL] Pre-check failed: No free minutes and insufficient tokens.');
         setStatus('disabled');
         toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You need at least 1 token to continue.' });
         return;
+    }
+    
+    // If status was disabled, but now we have tokens, re-enable it.
+    if(status === 'disabled') {
+        setStatus('idle');
     }
 
     log('[INFO] Pre-checks passed.');
@@ -137,6 +142,7 @@ export default function ConversePage() {
 
         if (!originalText) {
             log('[INFO] No original text returned. Ending turn gracefully.');
+            setStatus('idle'); // Explicitly set back to idle
             return;
         }
 
@@ -220,14 +226,6 @@ export default function ConversePage() {
     }
   };
 
-  const calculateCostForDuration = useCallback((durationMs: number) => {
-    const chargeableMs = Math.max(0, durationMs - freeMinutesMs);
-    if (chargeableMs === 0) return 0;
-
-    const billedMinutes = Math.ceil(chargeableMs / (60 * 1000));
-    return billedMinutes * costPerMinute;
-  }, [costPerMinute, freeMinutesMs]);
-
 
   const handleLanguageSelect = (lang: AzureLanguageCode) => {
     if (selectedLanguages.length < 4 && !selectedLanguages.includes(lang)) {
@@ -282,15 +280,6 @@ export default function ConversePage() {
     return `${mins}:${secs}`;
   };
 
-  useEffect(() => {
-      const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
-      const hasFreeMinutes = (syncLiveUsage || 0) < freeMinutesMs;
-      
-      if (status === 'idle' && !hasFreeMinutes && !hasSufficientTokens) {
-        setStatus('disabled');
-      }
-  }, [status, syncLiveUsage, userProfile?.tokenBalance, costPerMinute, freeMinutesMs]);
-  
   if (!isClient) {
       return (
         <div className="flex justify-center items-center h-[calc(100vh-8rem)]">
@@ -361,7 +350,7 @@ export default function ConversePage() {
                             status === 'disabled' && 'bg-destructive/80 cursor-not-allowed'
                         )}
                         onClick={startConversationTurn}
-                        disabled={status !== 'idle' || recordingStatus === 'confirming'}
+                        disabled={status === 'listening' || status === 'speaking' || recordingStatus === 'confirming'}
                         data-tour="sl-mic-button"
                     >
                         {status === 'idle' && <Mic className="h-16 w-16"/>}
