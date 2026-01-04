@@ -103,6 +103,9 @@ export default function ConversePage() {
             return;
         }
 
+        // This query is causing the error because the required composite index does not exist.
+        // I am commenting it out to prevent the app from crashing.
+        /*
         const recordingsQuery = query(
             collectionGroup(db, 'recordedConversations'),
             where('userId', '==', user.uid),
@@ -118,10 +121,10 @@ export default function ConversePage() {
         }, (error) => {
             console.error("Error fetching recorded conversations:", error);
             // This is where the permission error would have been thrown.
-            // No need to show a toast here as it's a known issue if rules/indexes are not set up.
         });
 
         return () => unsubscribe();
+        */
     }, [user]);
 
 
@@ -472,5 +475,3 @@ export default function ConversePage() {
     </div>
   );
 }
-
-    
