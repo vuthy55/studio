@@ -17,6 +17,7 @@ import { openDB } from 'idb';
 import { getFreeLanguagePacks } from '@/actions/audiopack-admin';
 import type { User } from 'firebase/auth';
 import { unlockLanguagePackAction } from '@/actions/user';
+import FirebaseErrorListener from '@/components/FirebaseErrorListener';
 
 
 // --- Types ---
@@ -546,7 +547,12 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
         unlockLanguagePack,
     };
 
-    return <UserDataContext.Provider value={value}>{children}</UserDataContext.Provider>;
+    return (
+        <UserDataContext.Provider value={value}>
+            {children}
+            {process.env.NODE_ENV === 'development' && <FirebaseErrorListener />}
+        </UserDataContext.Provider>
+    );
 };
 
 // --- Hook ---

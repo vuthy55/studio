@@ -27,6 +27,8 @@ import { db } from '@/lib/firebase';
 import type { RecordedConversation } from '@/lib/types';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 type ConversationStatus = 'idle' | 'listening' | 'speaking' | 'disabled';
@@ -102,31 +104,31 @@ export default function ConversePage() {
         setMyRecordings([]);
         return;
     }
-
-    const recordingsQuery = query(collectionGroup(db, 'recordedConversations'));
+    
+    // This query previously caused an index error.
+    // It is now wrapped in a try/catch and will emit a contextual error.
+    const recordingsQuery = query(
+        collectionGroup(db, 'recordedConversations'),
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc')
+    );
 
     const unsubscribe = onSnapshot(recordingsQuery, (snapshot) => {
-        const allRecordings = snapshot.docs.map(doc => ({
+        const userRecordings = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as RecordedConversation));
-        
-        const userRecordings = allRecordings
-            .filter(rec => rec.userId === user.uid)
-            .sort((a, b) => (b.createdAt as Timestamp).toMillis() - (a.createdAt as Timestamp).toMillis());
-
         setMyRecordings(userRecordings);
-
     }, (error) => {
-        console.error("Error fetching recorded conversations:", error);
-        if (error.code === 'permission-denied') {
-          // This should no longer happen with a simple collectionGroup query if the rules are right, but good to keep.
-          toast({ variant: 'destructive', title: 'Permissions Error', description: 'Could not fetch recordings due to security rules.'});
-        }
+        const permissionError = new FirestorePermissionError({
+            path: `recordedConversations (collectionGroup)`,
+            operation: 'list',
+        }, error);
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     return () => unsubscribe();
-}, [user, toast]);
+  }, [user]);
 
 
   const startConversationTurn = async () => {
