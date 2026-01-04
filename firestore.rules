@@ -214,8 +214,13 @@ service cloud.firestore {
     
     // --- COLLECTION GROUP QUERIES ---
     match /{path=**}/recordedConversations/{conversationId} {
-        // Allow user to list their own recordings across all collections.
-        allow list, read: if request.auth.uid == resource.data.userId;
+        // For a collectionGroup query (a 'list' operation), only allow it
+        // if the query is explicitly filtering for the user's own documents.
+        allow list: if request.auth.uid != null && request.query.where.path == "userId" && request.query.where.op == "==" && request.query.where.value == request.auth.uid;
+        
+        // For direct document reads ('get' operations), continue to allow
+        // the user to read their own document directly.
+        allow get: if request.auth.uid != null && resource.data.userId == request.auth.uid;
     }
     
     // PayPal temporary orders: Only allow creation from server-side action
