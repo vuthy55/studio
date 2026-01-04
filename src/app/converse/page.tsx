@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { translateText } from '@/ai/flows/translate-flow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateSpeech } from '@/services/tts';
-import { recognizeWithAutoDetect } from '@/services/speech';
+import { recognizeWithAutoDetect, abortRecognition } from '@/services/speech';
 import { useUserData } from '@/context/UserDataContext';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useTour, TourStep } from '@/context/TourContext';
@@ -62,10 +62,6 @@ export default function ConversePage() {
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('stopped');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   
-  // This part is disabled to prevent the error
-  // const [myRecordings, setMyRecordings] = useState<RecordedConversation[]>([]);
-
-
   const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState(0);
   const [sessionTokensUsed, setSessionTokensUsed] = useState(0);
@@ -100,40 +96,6 @@ export default function ConversePage() {
     };
   }, []); 
 
-  // DISABLED: This useEffect was causing the permission error.
-  // The functionality to list recordings is temporarily disabled.
-  /*
-  useEffect(() => {
-    if (!user) {
-        setMyRecordings([]);
-        return;
-    }
-    
-    const recordingsQuery = query(
-        collectionGroup(db, 'recordedConversations'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(recordingsQuery, (snapshot) => {
-        const userRecordings = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as RecordedConversation));
-        setMyRecordings(userRecordings);
-    }, (error) => {
-        const permissionError = new FirestorePermissionError({
-            path: `recordedConversations (collectionGroup)`,
-            operation: 'list',
-        }, error);
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-  */
-
-
   const startConversationTurn = async () => {
     log('--- Turn Started ---');
     if (!user || !settings) {
@@ -142,14 +104,17 @@ export default function ConversePage() {
         return;
     }
     
-    const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
-    
-    if (!hasSufficientTokens && (syncLiveUsage || 0) + sessionUsageRef.current >= freeMinutesMs) {
-        log('[FAIL] Pre-check failed: Insufficient tokens for next minute.');
+    // Corrected Logic: Check for access right before starting.
+    const hasFreeMinutes = (syncLiveUsage || 0) + sessionUsageRef.current < freeMinutesMs;
+    const hasTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
+
+    if (!hasFreeMinutes && !hasTokens) {
+        log('[FAIL] Pre-check failed: No free minutes and insufficient tokens.');
         setStatus('disabled');
-        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
+        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You need at least 1 token to continue.' });
         return;
     }
+
     log('[INFO] Pre-checks passed.');
 
     setStatus('listening');
@@ -199,7 +164,7 @@ export default function ConversePage() {
                 await addTranscriptTurnAction(activeConversationId, {
                     originalText,
                     translatedText,
-                    speaker: fromLangLabel, // Or determine based on who is speaking
+                    speaker: fromLangLabel,
                     fromLanguage: fromLangLabel,
                     toLanguage: toLangLabel,
                 });
@@ -319,12 +284,12 @@ export default function ConversePage() {
 
   useEffect(() => {
       const hasSufficientTokens = (userProfile?.tokenBalance ?? 0) >= costPerMinute;
+      const hasFreeMinutes = (syncLiveUsage || 0) < freeMinutesMs;
       
-      if (status === 'idle' && !hasSufficientTokens && (syncLiveUsage || 0) >= freeMinutesMs) {
+      if (status === 'idle' && !hasFreeMinutes && !hasSufficientTokens) {
         setStatus('disabled');
-        toast({ variant: 'destructive', title: 'Insufficient Tokens', description: 'You may not have enough tokens for the next minute of usage.'});
       }
-  }, [status, syncLiveUsage, userProfile?.tokenBalance, calculateCostForDuration, freeMinutesMs, toast, costPerMinute]);
+  }, [status, syncLiveUsage, userProfile?.tokenBalance, costPerMinute, freeMinutesMs]);
   
   if (!isClient) {
       return (
@@ -481,5 +446,3 @@ export default function ConversePage() {
     </div>
   );
 }
-
-    
