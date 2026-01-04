@@ -61,7 +61,9 @@ export default function ConversePage() {
   const [status, setStatus] = useState<ConversationStatus>('idle');
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('stopped');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [myRecordings, setMyRecordings] = useState<RecordedConversation[]>([]);
+  
+  // This part is disabled to prevent the error
+  // const [myRecordings, setMyRecordings] = useState<RecordedConversation[]>([]);
 
 
   const [speakingLanguage, setSpeakingLanguage] = useState<string | null>(null);
@@ -98,15 +100,15 @@ export default function ConversePage() {
     };
   }, []); 
 
-  // Fetch user's recorded conversations
+  // DISABLED: This useEffect was causing the permission error.
+  // The functionality to list recordings is temporarily disabled.
+  /*
   useEffect(() => {
     if (!user) {
         setMyRecordings([]);
         return;
     }
     
-    // This query previously caused an index error.
-    // It is now wrapped in a try/catch and will emit a contextual error.
     const recordingsQuery = query(
         collectionGroup(db, 'recordedConversations'),
         where('userId', '==', user.uid),
@@ -129,6 +131,7 @@ export default function ConversePage() {
 
     return () => unsubscribe();
   }, [user]);
+  */
 
 
   const startConversationTurn = async () => {
@@ -478,3 +481,5 @@ export default function ConversePage() {
     </div>
   );
 }
+
+    
