@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -23,7 +22,7 @@ import MainHeader from '@/components/layout/MainHeader';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { AzureLanguageCode } from '@/lib/azure-languages';
 import { createRecordedConversationAction, addTranscriptTurnAction } from '@/actions/user';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collectionGroup, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { RecordedConversation } from '@/lib/types';
 import { format } from 'date-fns';
@@ -104,15 +103,22 @@ export default function ConversePage() {
             return;
         }
 
-        const recordingsRef = collection(db, 'recordedConversations');
-        const q = query(recordingsRef, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const recordingsQuery = query(
+            collectionGroup(db, 'recordedConversations'),
+            where('userId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+        );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(recordingsQuery, (snapshot) => {
             const userRecordings = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             } as RecordedConversation));
             setMyRecordings(userRecordings);
+        }, (error) => {
+            console.error("Error fetching recorded conversations:", error);
+            // This is where the permission error would have been thrown.
+            // No need to show a toast here as it's a known issue if rules/indexes are not set up.
         });
 
         return () => unsubscribe();
@@ -466,3 +472,5 @@ export default function ConversePage() {
     </div>
   );
 }
+
+    
